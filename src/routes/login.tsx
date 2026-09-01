@@ -9,6 +9,12 @@ import { toFaError as faErr } from "@/lib/toranj/errors";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
+const homeSearch = {
+  tab: undefined as undefined,
+  order: undefined as undefined,
+  customer: undefined as undefined,
+};
+
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
@@ -20,7 +26,7 @@ function Login() {
   const [error, setError] = useState("");
 
   if (!isPending && user) {
-    void navigate({ to: "/" });
+    void navigate({ to: "/", search: homeSearch });
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -55,7 +61,7 @@ function Login() {
         if (inErr) throw new Error(inErr.message ?? "ورود ناموفق بود.");
       }
       await authClient.getSession();
-      navigate({ to: "/" });
+      navigate({ to: "/", search: homeSearch });
     } catch (err) {
       setError(mapAuthError(err));
     } finally {
