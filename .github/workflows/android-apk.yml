@@ -1,0 +1,86 @@
+name: Toranj Seller Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "capacitor.config.ts"
+      - ".github/workflows/android-apk.yml"
+      - "src/**"
+      - "public/**"
+      - "assets/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    name: Build فروشنده ترنج APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install project dependencies
+        run: npm ci --registry=https://registry.npmjs.org/
+
+      - name: Install Capacitor tooling
+        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
+
+      - name: Web checks
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Prepare Capacitor web directory
+        run: mkdir -p dist
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Generate Android icon assets
+        run: |
+          mkdir -p resources
+          cp public/icon-512.png resources/icon.png
+          npx capacitor-assets generate --android
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: toranj-seller-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
