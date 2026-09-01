@@ -98,13 +98,18 @@ test("the build side resolves the template's shipped app-env", () => {
 test("the CLI reports rather than silently passing when run via a symlink", async () => {
   // A check whose exit code is the whole signal must never no-op to 0 because
   // process.argv[1] came in through a symlinked path.
+  // Run outside CI so indeterminate still exits 2 (CI soft-pass is tested separately
+  // via the main check:auth step and unit tests for compareAuthInvariant).
   const link = join(mkdtempSync(join(tmpdir(), "auth-invariant-link-")), "scripts");
   symlinkSync(join(projectRoot(), "scripts"), link);
-  const error = await promisify(execFile)(process.execPath, [
-    join(link, "check-auth-invariant.mjs"),
-    "--dev-url",
-    "http://127.0.0.1:1",
-  ]).catch((err) => err);
+  const env = { ...process.env };
+  delete env.CI;
+  delete env.GITHUB_ACTIONS;
+  const error = await promisify(execFile)(
+    process.execPath,
+    [join(link, "check-auth-invariant.mjs"), "--dev-url", "http://127.0.0.1:1"],
+    { env },
+  ).catch((err) => err);
   assert.equal(error.code, 2);
   assert.match(error.stderr, /could not read the dev server's resolved VITE_AUTH_ENABLED/);
 });
