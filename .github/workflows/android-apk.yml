@@ -46,17 +46,8 @@ jobs:
       - name: Install Capacitor tooling
         run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
 
-      # Unit tests must see the same auth contract as seller-validation
-      # (preview/dev auth=false). Production auth is enabled only for the
-      # Vite build that ships inside / is loaded by the APK.
-      - name: Web checks (preview auth contract)
-        env:
-          VITE_AUTH_ENABLED: "false"
-        run: |
-          npm run typecheck
-          npm run lint
-          npm test
-
+      # Unit tests / lint / typecheck are owned by seller-validation.yml.
+      # This job focuses on producing a real Android APK that loads production.
       - name: Production web build for APK
         env:
           VITE_AUTH_ENABLED: "true"
