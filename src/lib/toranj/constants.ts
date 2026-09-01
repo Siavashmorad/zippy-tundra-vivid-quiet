@@ -15,20 +15,20 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   new: "جدید",
-  confirmed: "تأییدشده",
+  confirmed: "تأیید شده",
   preparing: "در حال آماده‌سازی",
   ready: "آماده تحویل",
-  delivered: "تحویل‌شده",
-  cancelled: "لغوشده",
+  delivered: "تحویل شده",
+  cancelled: "لغو شده",
 };
 
 export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "rejected"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
-  unpaid: "پرداخت‌نشده",
-  pending: "در انتظار تأیید",
-  paid: "پرداخت‌شده",
+  unpaid: "پرداخت نشده",
+  pending: "در انتظار بررسی",
+  paid: "تأیید شده",
   rejected: "رد شده",
 };
 
