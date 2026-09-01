@@ -18,6 +18,13 @@ on:
 permissions:
   contents: read
 
+env:
+  # Production APK must use the real Better Auth flow. The repository's
+  # .grok/app-env.json keeps preview auth disabled, but that is unsafe with the
+  # real Neon database: server auth middleware intentionally rejects the shared
+  # dev user when DATABASE_URL is configured.
+  VITE_AUTH_ENABLED: "true"
+
 jobs:
   android-apk:
     name: Build فروشنده ترنج APK
@@ -53,6 +60,10 @@ jobs:
           npm test
           npm run build
 
+      - name: Verify production backend
+        run: |
+          node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
+
       - name: Prepare Capacitor web directory
         run: mkdir -p dist
 
@@ -65,7 +76,6 @@ jobs:
           if [ -f public/icon-512.png ]; then
             cp public/icon-512.png resources/icon.png
           elif [ -f assets/icons/toranj_seller.svg ]; then
-            # fallback: assets plugin needs PNG; skip generate if no PNG
             echo "icon-512.png missing — skipping capacitor-assets if needed"
             cp assets/icons/toranj_seller.svg resources/icon.svg || true
           fi
