@@ -16,12 +16,22 @@ export const Route = createFileRoute("/api/health")({
             version: SELLER_APP_VERSION,
             db: dbSource,
           });
-        } catch {
+        } catch (error) {
+          // Never expose DATABASE_URL, credentials, or driver error text.
+          // Keep a safe diagnostic so Production can distinguish a missing
+          // DATABASE_URL (PGLite fallback) from a failed Neon connection.
+          const reason = dbSource === "neon" ? "neon_connection_failed" : "database_url_missing";
+          console.error("[health] database check failed", {
+            db: dbSource,
+            error: error instanceof Error ? error.message : String(error),
+          });
           return Response.json(
             {
               ok: false,
               app: "فروشنده ترنج",
               version: SELLER_APP_VERSION,
+              db: dbSource,
+              reason,
               error: "ارتباط با پایگاه‌داده برقرار نشد.",
             },
             { status: 503 },
