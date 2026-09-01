@@ -54,10 +54,14 @@ jobs:
 
       - name: Web checks
         run: |
-          npm run typecheck
-          npm run lint
-          npm test
-          npm run build
+          # The repository's unit tests intentionally assert the preview
+          # template's shipped auth=false contract. Keep that contract while
+          # running checks, then restore production auth=true for the actual
+          # Vite build that is embedded/loaded by the APK.
+          VITE_AUTH_ENABLED=false npm run typecheck
+          VITE_AUTH_ENABLED=false npm run lint
+          VITE_AUTH_ENABLED=false npm test
+          VITE_AUTH_ENABLED=true npm run build
 
       - name: Check production backend
         continue-on-error: true
