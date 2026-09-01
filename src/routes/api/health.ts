@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/health")({
             version: SELLER_APP_VERSION,
             db: dbSource,
           });
-        } catch (err) {
+        } catch {
           return Response.json(
             {
               ok: false,
