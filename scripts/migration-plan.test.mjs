@@ -56,10 +56,12 @@ test("non-.sql entries are dropped (readdir also yields the auth/ directory)", (
   assert.deepEqual(pendingMigrations(["auth", "README.md"], []), []);
 });
 
-test("the auth schema ships outside the globbed directory", () => {
+test("the auth schema source ships under migrations/auth/", () => {
+  // Toranj (and any real app) also keeps applied schema files under migrations/*.
+  // The invariant is that the Better Auth source copy remains under migrations/auth/.
   const migrationsDir = join(projectRoot(), "migrations");
-  assert.deepEqual(pendingMigrations(readdirSync(migrationsDir), []), []);
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
+  assert.ok(existsSync(join(migrationsDir, "auth", AUTH_MIGRATION)));
 });
 
 test("this workspace's auth schema copy is byte-identical to its source", () => {
