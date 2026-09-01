@@ -42,3 +42,18 @@ export const searchSellerMessages = createServerFn({ method: "GET" })
     const { searchMessages } = await import("../server/messages");
     return searchMessages(context.userId, data.q);
   });
+
+export const getBroadcastAudienceCount = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { countBroadcastAudience } = await import("../server/messages");
+    return countBroadcastAudience(context.userId);
+  });
+
+export const sendSellerBroadcast = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ body: z.string().min(1), confirm: z.literal(true) }))
+  .handler(async ({ context, data }) => {
+    const { createBroadcast } = await import("../server/messages");
+    return createBroadcast(context.userId, data.body);
+  });

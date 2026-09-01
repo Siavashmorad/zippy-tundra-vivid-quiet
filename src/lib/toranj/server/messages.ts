@@ -137,13 +137,13 @@ export async function sendCustomerMessage(input: {
     shopId: shop.id,
     userId: shop.ownerUserId,
     type: "message.new",
-    title: `پیام از ${customerFullName(customer.firstName, customer.lastName)}`,
-    body: text.slice(0, 120),
+    title: `پیام جدید از مشتری`,
+    body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`,
     payload: { customerId: customer.id, messageId: id },
   });
   await sendPushToUser(shop.ownerUserId, {
-    title: customerFullName(customer.firstName, customer.lastName),
-    body: text.slice(0, 120),
+    title: "پیام جدید از مشتری",
+    body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`,
     url: `/?tab=messages&customer=${customer.id}`,
     tag: `msg-${customer.id}`,
   });
@@ -173,7 +173,15 @@ export async function searchMessages(userId: string, q: string): Promise<Message
   return rows.map(mapMessage);
 }
 
-/** Backend-ready broadcast (not exposed in seller UI v1). */
+export async function countBroadcastAudience(userId: string): Promise<{ count: number }> {
+  const shop = await requireShopByOwner(userId);
+  const sql = await getSql();
+  const rows = await sql<{ n: number }>`
+    select count(*)::int as n from customers where shop_id = ${shop.id}`;
+  return { count: rows[0]?.n ?? 0 };
+}
+
+/** Broadcast to all (or selected) customers in controlled batches. */
 export async function createBroadcast(
   userId: string,
   body: string,
@@ -181,6 +189,7 @@ export async function createBroadcast(
 ): Promise<{ broadcastId: string; recipientCount: number }> {
   const text = body.trim();
   if (!text) fail("متن پیام خالی است.");
+  if (text.length > 2000) fail("متن پیام بیش از حد طولانی است.");
   const shop = await requireShopByOwner(userId);
   const sql = await getSql();
   const targets = customerIds?.length
@@ -188,16 +197,24 @@ export async function createBroadcast(
     : (
         await sql<{ id: string }>`select id from customers where shop_id = ${shop.id}`
       ).map((r) => r.id);
+  if (targets.length === 0) fail("هیچ مشتری‌ای برای ارسال وجود ندارد.");
+
   const broadcastId = nid("brd");
   await sql`insert into broadcasts (id, shop_id, body, created_by)
     values (${broadcastId}, ${shop.id}, ${text}, ${userId})`;
-  for (const customerId of targets) {
-    const msgId = nid("msg");
-    await sql`insert into messages (id, shop_id, customer_id, sender_role, sender_user_id, body, delivered_at)
-      values (${msgId}, ${shop.id}, ${customerId}, 'seller', ${userId}, ${text}, now())`;
-    await sql`insert into broadcast_recipients (broadcast_id, customer_id, message_id)
-      values (${broadcastId}, ${customerId}, ${msgId})`;
+
+  const BATCH = 50;
+  for (let i = 0; i < targets.length; i += BATCH) {
+    const chunk = targets.slice(i, i + BATCH);
+    for (const customerId of chunk) {
+      const msgId = nid("msg");
+      await sql`insert into messages (id, shop_id, customer_id, sender_role, sender_user_id, body, delivered_at)
+        values (${msgId}, ${shop.id}, ${customerId}, 'seller', ${userId}, ${text}, now())`;
+      await sql`insert into broadcast_recipients (broadcast_id, customer_id, message_id)
+        values (${broadcastId}, ${customerId}, ${msgId})`;
+    }
   }
+
   await emitShopEvent(shop.id, "broadcast.created", {
     broadcastId,
     recipientCount: targets.length,
