@@ -70,6 +70,15 @@ const env = (key: string): string | undefined => {
   return value ? value : undefined;
 };
 
+/** Normalize a host or URL into an https origin (no trailing slash). */
+function toHttpsOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return undefined;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed.replace(/^http:\/\//i, "https://");
+  return `https://${trimmed}`;
+}
+
 // Explicit off-switch. The deployer sets `VITE_AUTH_ENABLED=true` when it
 // provisions auth; set it to "false" to force auth off everywhere (dev user).
 const authDisabled = env("VITE_AUTH_ENABLED") === "false";
@@ -85,13 +94,15 @@ const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET
 export const authConfigured =
   !authDisabled && Boolean(grokClientId && grokClientSecret);
 
-// This app's own Better Auth origin. When deployed the deployer injects the
-// public URL. In the sandbox live preview there's no fixed URL (each preview gets
-// a dynamic `*.grok-sandbox.com` host), so we hand Better Auth a dynamic baseURL:
-// it derives the origin per-request from the (proxied) host, validated against the
-// preview allowlist, which makes the OAuth `redirect_uri` the concrete preview URL
-// the broker's preview client accepts.
+// This app's own Better Auth origin. Prefer explicit BETTER_AUTH_URL, then the
+// automatic Vercel deployment URL so Production email/password POSTs are not
+// rejected with INVALID_ORIGIN when the env was only partially configured.
 const explicitBaseURL = env("BETTER_AUTH_URL");
+const vercelOrigin =
+  toHttpsOrigin(env("VERCEL_PROJECT_PRODUCTION_URL")) ??
+  toHttpsOrigin(env("VERCEL_URL"));
+const deployedBaseURL = explicitBaseURL ?? vercelOrigin;
+
 // Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
 // requires a mutable `allowedHosts: string[]`.
 const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
@@ -103,7 +114,8 @@ const LOCAL_DEV_ORIGINS: string[] = [
   "http://127.0.0.1:8080",
   "http://[::1]:8080",
 ];
-const baseURL = explicitBaseURL ?? {
+
+const baseURL = deployedBaseURL ?? {
   // Include loopback hosts so dynamic baseURL resolves for local email/password
   // (not only the preview wildcard).
   allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
@@ -115,15 +127,22 @@ const baseURL = explicitBaseURL ?? {
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+const trustedOrigins: string[] = [
+  ...(deployedBaseURL ? [deployedBaseURL] : []),
+  // Always accept the automatic Vercel host even when BETTER_AUTH_URL points
+  // at a custom domain — preview + production aliases must both work.
+  ...(vercelOrigin && vercelOrigin !== deployedBaseURL ? [vercelOrigin] : []),
+  // Known production host for this Toranj seller deployment (stable alias).
+  "https://zippy-tundra-vivid-quiet.vercel.app",
+  ...LOCAL_DEV_ORIGINS,
+  // Preview hosts (Grok sandbox) when not on a fixed deployed base URL.
+  ...(!deployedBaseURL
+    ? [
+        ...previewAllowedHosts,
+        ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+      ]
+    : []),
+];
 
 const databaseUrl = env("DATABASE_URL");
 

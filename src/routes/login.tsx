@@ -175,6 +175,12 @@ function Login() {
 
 function mapAuthError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
+  if (/invalid origin|INVALID_ORIGIN/i.test(msg)) {
+    return "درخواست از مبدأ مجاز نیست. لطفاً صفحه را تازه‌سازی کنید و دوباره تلاش کنید.";
+  }
+  if (/database|neon|connection|pglite|503/i.test(msg)) {
+    return "ارتباط با پایگاه‌داده برقرار نشد. تنظیمات سرور را بررسی کنید.";
+  }
   if (/invalid email or password|invalid password|unauthorized/i.test(msg)) {
     return "شماره یا رمز عبور نادرست است.";
   }
