@@ -18,12 +18,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # The APK must use real Better Auth. The preview template keeps this false,
-  # but the production Neon database must never be accessed with the shared
-  # development user.
-  VITE_AUTH_ENABLED: "true"
-
 jobs:
   android-apk:
     name: Build فروشنده ترنج APK
@@ -52,16 +46,21 @@ jobs:
       - name: Install Capacitor tooling
         run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
 
-      - name: Web checks
+      # Unit tests must see the same auth contract as seller-validation
+      # (preview/dev auth=false). Production auth is enabled only for the
+      # Vite build that ships inside / is loaded by the APK.
+      - name: Web checks (preview auth contract)
+        env:
+          VITE_AUTH_ENABLED: "false"
         run: |
-          # The repository's unit tests intentionally assert the preview
-          # template's shipped auth=false contract. Keep that contract while
-          # running checks, then restore production auth=true for the actual
-          # Vite build that is embedded/loaded by the APK.
-          VITE_AUTH_ENABLED=false npm run typecheck
-          VITE_AUTH_ENABLED=false npm run lint
-          VITE_AUTH_ENABLED=false npm test
-          VITE_AUTH_ENABLED=true npm run build
+          npm run typecheck
+          npm run lint
+          npm test
+
+      - name: Production web build for APK
+        env:
+          VITE_AUTH_ENABLED: "true"
+        run: npm run build
 
       - name: Check production backend
         continue-on-error: true
