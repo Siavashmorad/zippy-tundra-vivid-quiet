@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
 import {
@@ -108,7 +108,11 @@ export function CustomersTab({
                     </p>
                   </div>
                   <span className="text-xs text-ink-faint">
-                    {c.source === "customer_app" ? "از اپ مشتری" : c.source === "contacts" ? "مخاطبین" : "فروشنده"}
+                    {c.source === "customer_app"
+                      ? "از اپ مشتری"
+                      : c.source === "contacts"
+                        ? "مخاطبین"
+                        : "فروشنده"}
                   </span>
                 </button>
               </li>
@@ -137,6 +141,12 @@ function CustomerSheet({
   onMessage: (id: string) => void;
 }) {
   const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const detail = useQuery({
     queryKey: ["customer", id],
     queryFn: () => getSellerCustomer({ data: { id: id! } }),
@@ -147,39 +157,131 @@ function CustomerSheet({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["customers"] });
       void qc.invalidateQueries({ queryKey: ["seller-state"] });
+      void qc.invalidateQueries({ queryKey: ["customer", id] });
     },
   });
+  const save = useMutation({
+    mutationFn: () =>
+      saveCustomer({
+        data: { id: id!, firstName, lastName, phone, address, notes },
+      }),
+    onSuccess: () => {
+      toast.success("مشتری به‌روز شد.");
+      setEditing(false);
+      void qc.invalidateQueries({ queryKey: ["customers"] });
+      void qc.invalidateQueries({ queryKey: ["customer", id] });
+    },
+    onError: (e) => toast.error(toFaError(e)),
+  });
   const customer = detail.data?.customer;
+
+  useEffect(() => {
+    if (customer) {
+      setFirstName(customer.firstName);
+      setLastName(customer.lastName);
+      setPhone(customer.phone);
+      setAddress(customer.address);
+      setNotes(customer.notes);
+      setEditing(false);
+    }
+  }, [customer]);
+
   return (
     <Sheet open={Boolean(id)} onClose={onClose} title="پرونده مشتری">
       {detail.isLoading ? (
         <div className="h-32 animate-pulse rounded-2xl bg-paper-2" />
       ) : customer ? (
         <div className="space-y-4">
-          <div>
-            <p className="text-lg font-semibold">
-              {customerFullName(customer.firstName, customer.lastName)}
-              {customer.isNew ? (
-                <span className="mr-2 rounded-full bg-brand px-2 py-0.5 text-[11px] text-brand-fg">
-                  جدید
-                </span>
-              ) : null}
-            </p>
-            <p dir="ltr" className="text-sm text-ink-soft">
-              {displayPhone(customer.phone)}
-            </p>
-            {customer.address ? <p className="mt-1 text-sm">{customer.address}</p> : null}
-          </div>
-          <div className="flex gap-2">
-            <Btn className="flex-1" onClick={() => onMessage(customer.id)}>
-              پیام
-            </Btn>
-            {customer.isNew ? (
-              <Btn variant="line" className="flex-1" onClick={() => seen.mutate()}>
-                دیده‌شد
-              </Btn>
-            ) : null}
-          </div>
+          {editing ? (
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                save.mutate();
+              }}
+            >
+              <Field label="نام">
+                <input
+                  className={inputClass}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="نام خانوادگی">
+                <input
+                  className={inputClass}
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </Field>
+              <Field label="شماره موبایل">
+                <input
+                  className={inputClass}
+                  dir="ltr"
+                  inputMode="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="آدرس">
+                <input
+                  className={inputClass}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </Field>
+              <Field label="یادداشت">
+                <textarea
+                  className={`${inputClass} h-24 py-3`}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </Field>
+              <div className="flex gap-2">
+                <Btn type="submit" className="flex-1" disabled={save.isPending}>
+                  ذخیره
+                </Btn>
+                <Btn type="button" variant="line" className="flex-1" onClick={() => setEditing(false)}>
+                  انصراف
+                </Btn>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div>
+                <p className="text-lg font-semibold">
+                  {customerFullName(customer.firstName, customer.lastName)}
+                  {customer.isNew ? (
+                    <span className="mr-2 rounded-full bg-brand px-2 py-0.5 text-[11px] text-brand-fg">
+                      جدید
+                    </span>
+                  ) : null}
+                </p>
+                <p dir="ltr" className="text-sm text-ink-soft">
+                  {displayPhone(customer.phone)}
+                </p>
+                {customer.address ? <p className="mt-1 text-sm">{customer.address}</p> : null}
+                {customer.notes ? (
+                  <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2 text-sm">یادداشت: {customer.notes}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Btn className="flex-1" onClick={() => onMessage(customer.id)}>
+                  پیام
+                </Btn>
+                <Btn variant="line" className="flex-1" onClick={() => setEditing(true)}>
+                  ویرایش
+                </Btn>
+                {customer.isNew ? (
+                  <Btn variant="line" className="flex-1" onClick={() => seen.mutate()}>
+                    دیده‌شد
+                  </Btn>
+                ) : null}
+              </div>
+            </>
+          )}
           <div>
             <p className="mb-2 text-sm font-medium">سابقه سفارش</p>
             {(detail.data?.orders ?? []).length === 0 ? (
@@ -212,8 +314,9 @@ function AddCustomerSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const mut = useMutation({
-    mutationFn: () => saveCustomer({ data: { firstName, lastName, phone, address } }),
+    mutationFn: () => saveCustomer({ data: { firstName, lastName, phone, address, notes } }),
     onSuccess: () => {
       toast.success("مشتری ثبت شد.");
       void qc.invalidateQueries({ queryKey: ["customers"] });
@@ -221,6 +324,7 @@ function AddCustomerSheet({ open, onClose }: { open: boolean; onClose: () => voi
       setLastName("");
       setPhone("");
       setAddress("");
+      setNotes("");
       onClose();
     },
     onError: (e) => toast.error(toFaError(e)),
@@ -252,6 +356,13 @@ function AddCustomerSheet({ open, onClose }: { open: boolean; onClose: () => voi
         </Field>
         <Field label="آدرس">
           <input className={inputClass} value={address} onChange={(e) => setAddress(e.target.value)} />
+        </Field>
+        <Field label="یادداشت">
+          <textarea
+            className={`${inputClass} h-24 py-3`}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </Field>
         <Btn type="submit" className="w-full" disabled={mut.isPending}>
           ذخیره

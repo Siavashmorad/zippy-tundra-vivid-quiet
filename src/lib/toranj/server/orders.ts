@@ -1,5 +1,5 @@
 import { getSql } from "@/lib/db";
-import { ORDER_STATUSES, type OrderStatus, type Unit } from "../constants";
+import { ORDER_STATUSES, STATUS_LABEL, type OrderStatus, type Unit } from "../constants";
 import { fail } from "../errors";
 import { nid } from "../ids";
 import { customerFullName, itemSummary } from "../format";
@@ -254,18 +254,19 @@ export async function setOrderStatus(
   const customerRows = await sql<Record<string, unknown>>`
     select * from customers where id = ${current.customerId} limit 1`;
   const customer = customerRows[0] ? mapCustomer(customerRows[0]) : null;
+  const faStatus = STATUS_LABEL[status as OrderStatus] ?? status;
   if (customer?.userId) {
     await createNotification({
       shopId: shop.id,
       userId: customer.userId,
       type: "order.status",
       title: "به‌روزرسانی سفارش",
-      body: `وضعیت سفارش شما به «${status}» تغییر کرد.`,
+      body: `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`,
       payload: { orderId, status },
     });
     await sendPushToUser(customer.userId, {
       title: "وضعیت سفارش",
-      body: `سفارش شما به‌روز شد.`,
+      body: `سفارش شما به «${faStatus}» تغییر کرد.`,
       url: "/c",
       tag: `order-${orderId}`,
     });
