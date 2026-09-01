@@ -5,35 +5,25 @@ import { auth, authConfigured } from "./server";
 /**
  * Server-side session resolution (server-only).
  *
- * Because this app runs its OWN Better Auth at same-origin `/api/auth/*`, the
- * session cookie is sent with every request to this app — server functions AND
- * SSR loaders included. So we resolve the user straight from the request cookies
- * via `auth.api.getSession` (no client-minted JWT needed). Never trust a
- * client-supplied user id — only the result of this verification.
+ * The production seller app uses the app's own Better Auth at same-origin
+ * `/api/auth/*`. Email/password authentication is sufficient for production;
+ * the optional Grok OAuth broker must not be required for ordinary sessions.
  */
 
 /** True when a real database is configured server-side. */
 const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
 
-/** Re-export so callers can branch on it without importing `server.ts`. */
+/** Local Better Auth is usable whenever the real DB exists and email/password is enabled. */
+const localAuthConfigured =
+  databaseConfigured && process.env.VITE_AUTH_ENABLED !== "false";
+
+/** Re-export the broker configuration flag for callers that explicitly need it. */
 export { authConfigured };
 
-if (databaseConfigured && !authConfigured) {
-  console.error(
-    "[auth] DATABASE_URL is set but auth is disabled (VITE_AUTH_ENABLED=false) " +
-      "— requireUserId() will reject every request (fail closed) rather than " +
-      "share one dev user on a real database.",
-  );
-}
-
-/** Dev fallback user id, used only when auth is disabled (VITE_AUTH_ENABLED=false). */
+/** Dev fallback user id, used only when auth is disabled and no real database exists. */
 export const DEV_USER_ID = "dev-user";
 
-/**
- * Thrown by `requireUserId` when the caller has no valid session. Carries
- * `status: 401`; the message is a stable contract — match
- * `err.message === "Unauthorized"` client-side to send the visitor to sign-in.
- */
+/** Thrown by `requireUserId` when the caller has no valid session. */
 export class UnauthorizedError extends Error {
   readonly status = 401;
   constructor() {
@@ -45,19 +35,16 @@ export class UnauthorizedError extends Error {
 export type VerifiedUser = { id: string; email: string | null };
 
 /**
- * Resolve the signed-in user from the current request, or `null` when auth isn't
- * configured / nobody is signed in. Safe to call from server functions and SSR
- * loaders.
+ * Resolve the signed-in user from the current request.
  *
- * `bearerToken` is for the LIVE PREVIEW: the app runs in a partitioned iframe
- * whose cookies don't reach the server, so `authMiddleware` forwards the session
- * as a bearer token, which we present as `Authorization: Bearer …` (the `bearer`
- * plugin resolves it). When deployed no token is passed and the cookie is used.
+ * A production Postgres deployment may intentionally have no Grok OAuth broker
+ * credentials because the seller uses local email/password. Therefore this
+ * function must not gate normal Better Auth sessions on `authConfigured`.
  */
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
-  if (!authConfigured && !gateIdentityEnabled()) return null;
+  if (!localAuthConfigured && !gateIdentityEnabled()) return null;
   const request = getRequest();
   if (!request) return null;
   let headers = request.headers;
@@ -71,27 +58,25 @@ export async function getSessionUser(
 }
 
 /**
- * Resolve the current user id for a server function, or throw when unauthorized.
- * Prefer `authMiddleware` (`./middleware`), which calls this for you.
- * - Auth enabled -> the verified session user id; throws
- *   `UnauthorizedError` when signed out. Works in the sandbox preview too (real
- *   sign-in via the baked preview client).
- * - Auth disabled (`VITE_AUTH_ENABLED=false`) + `DATABASE_URL` set -> throw (fail
- *   closed): one shared dev user on a real database would let every visitor
- *   read/write everyone's rows.
- * - Auth disabled + no database -> the shared dev user id.
+ * Resolve the current user id for a server function.
+ *
+ * - Production/local real DB + auth enabled -> verified Better Auth session.
+ * - Gate identity -> verified gate identity/session.
+ * - Auth disabled + real DB -> fail closed; never share `dev-user`.
+ * - Auth disabled + no DB -> development fallback user.
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
-  if (!authConfigured && !gateIdentityEnabled()) {
-    if (databaseConfigured) {
-      throw new Error(
-        "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
-          "refusing to fall back to the shared dev user against a real database.",
-      );
-    }
-    return DEV_USER_ID;
+  if (localAuthConfigured || gateIdentityEnabled()) {
+    const user = await getSessionUser(bearerToken);
+    if (!user) throw new UnauthorizedError();
+    return user.id;
   }
-  const user = await getSessionUser(bearerToken);
-  if (!user) throw new UnauthorizedError();
-  return user.id;
+
+  if (databaseConfigured) {
+    throw new Error(
+      "احراز هویت غیرفعال است و پایگاه‌داده واقعی تنظیم شده؛ استفاده از کاربر آزمایشی مجاز نیست.",
+    );
+  }
+
+  return DEV_USER_ID;
 }
