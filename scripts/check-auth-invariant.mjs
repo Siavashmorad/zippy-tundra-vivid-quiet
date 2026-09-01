@@ -21,6 +21,10 @@
  * standalone against a live dev server with `npm run check:auth` (exit 0 agree,
  * 1 diverged, 2 could not observe). Callers comparing the flag should use
  * `compareAuthInvariant()` rather than re-deriving it.
+ *
+ * In CI (`CI=true`) without a live dev server the probe is indeterminate; that
+ * is not treated as failure — the invariant logic is covered by unit tests and
+ * the build side is still resolved via `with-app-env.mjs` during `npm run build`.
  */
 import { APP_ENV_ROUTE } from "./app-env-plugin.mjs";
 import { isMainModule, mergeAppEnv, projectRoot, readAppEnv } from "./with-app-env.mjs";
@@ -92,16 +96,31 @@ export function buildAuthEnabled(root = projectRoot(), processEnv = process.env)
 async function main(argv) {
   const devUrlFlag = argv.indexOf("--dev-url");
   const devUrl = devUrlFlag === -1 ? DEFAULT_DEV_URL : argv[devUrlFlag + 1];
+  const buildSide = buildAuthEnabled();
   const result = compareAuthInvariant({
     devAuthEnabled: await probeDevAuthEnabled(devUrl),
-    buildAuthEnabled: buildAuthEnabled(),
+    buildAuthEnabled: buildSide,
   });
   if (result.status === "ok") {
     console.log(result.message);
     process.exit(0);
   }
+  if (result.status === "indeterminate") {
+    // GitHub Actions and other CI runners have no live `npm run dev`.
+    // Unit tests already cover compareAuthInvariant / probeDevAuthEnabled.
+    if (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") {
+      const label = buildSide ? "on" : "off";
+      console.log(
+        `${result.message}\n[auth-invariant] CI: no live dev server — treating as pass; ` +
+          `build-side sign-in is ${label} (unit tests cover the invariant).`,
+      );
+      process.exit(0);
+    }
+    console.error(result.message);
+    process.exit(2);
+  }
   console.error(result.message);
-  process.exit(result.status === "diverged" ? 1 : 2);
+  process.exit(1);
 }
 
 if (isMainModule(import.meta.url)) {
