@@ -1,0 +1,56 @@
+name: فروشنده ترنج — بررسی و Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: بررسی فروشنده ترنج
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: دریافت سورس کامل
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: نصب وابستگی‌ها
+        run: npm ci --registry=https://registry.npmjs.org/
+
+      - name: بررسی TypeScript
+        run: npm run typecheck
+
+      - name: بررسی Lint
+        run: npm run lint
+
+      - name: اجرای تست‌ها
+        run: npm test
+
+      - name: بررسی احراز هویت
+        run: npm run check:auth
+
+      - name: Build تولیدی
+        run: npm run build
+
+      - name: نگهداری خروجی Build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toranj-seller-web-build
+          path: |
+            dist/**
+            .output/**
+          if-no-files-found: warn
+          retention-days: 7
