@@ -144,14 +144,10 @@ export function SettingsPanel({
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">نصب روی گوشی</h3>
           <p className="text-sm text-ink-soft">
-            از منوی مرورگر «افزودن به صفحه اصلی» را بزنید تا نام برنامه «فروشنده ترنج» روی گوشی دیده شود. فایل نصب اندروید هم از بخش دانلود در دسترس است.
+            این نسخه به‌صورت PWA است. از منوی مرورگر Chrome «افزودن به صفحه اصلی» را بزنید تا نام
+            «فروشنده ترنج» و آیکن قرمز ترنج روی گوشی دیده شود. APK Native اندروید هنوز ساخته نشده
+            است.
           </p>
-          <a
-            href="/toranj-seller.apk"
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm"
-          >
-            دانلود فایل نصب اندروید
-          </a>
         </section>
 
         <section className="space-y-3 rounded-2xl bg-paper p-3">
