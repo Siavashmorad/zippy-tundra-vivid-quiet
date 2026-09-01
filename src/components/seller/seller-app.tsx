@@ -38,6 +38,8 @@ export function SellerApp({
   const [connected, setConnected] = useState(true);
   const [net, setNet] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const lastOrderCount = useRef<number | null>(null);
+  const lastEventId = useRef(0);
+  const seenEventIds = useRef(new Set<number>());
 
   const state = useQuery({
     queryKey: ["seller-state"],
@@ -108,7 +110,11 @@ export function SellerApp({
           const headers: Record<string, string> = {};
           const token = getBearerToken();
           if (token) headers.Authorization = `Bearer ${token}`;
-          const res = await fetch("/api/events", { headers, signal: abort.signal });
+          const after = lastEventId.current;
+          const res = await fetch(`/api/events?after=${after}`, {
+            headers,
+            signal: abort.signal,
+          });
           if (!res.ok || !res.body) throw new Error("sse");
           setConnected(true);
           const reader = res.body.getReader();
@@ -123,10 +129,38 @@ export function SellerApp({
             for (const chunk of chunks) {
               const line = chunk.split("\n").find((l) => l.startsWith("data:"));
               if (!line) continue;
-              const ev = JSON.parse(line.slice(5).trim()) as { type?: string };
+              const ev = JSON.parse(line.slice(5).trim()) as {
+                type?: string;
+                id?: number;
+              };
+              if (typeof ev.id === "number" && ev.id > 0) {
+                if (seenEventIds.current.has(ev.id)) continue;
+                seenEventIds.current.add(ev.id);
+                if (seenEventIds.current.size > 400) {
+                  const keep = [...seenEventIds.current].sort((a, b) => a - b).slice(-200);
+                  seenEventIds.current = new Set(keep);
+                }
+                if (ev.id > lastEventId.current) lastEventId.current = ev.id;
+              }
               if (ev.type && ev.type !== "hello") {
                 if (ev.type === "order.created") pingNewOrder();
-                refreshAll();
+                if (ev.type === "order.created" || ev.type === "order.updated") {
+                  void qc.invalidateQueries({ queryKey: ["orders"] });
+                  void qc.invalidateQueries({ queryKey: ["seller-state"] });
+                } else if (ev.type === "customer.created" || ev.type === "customer.updated" || ev.type === "customer.synced") {
+                  void qc.invalidateQueries({ queryKey: ["customers"] });
+                  void qc.invalidateQueries({ queryKey: ["seller-state"] });
+                } else if (
+                  ev.type === "message.created" ||
+                  ev.type === "message.read" ||
+                  ev.type === "broadcast.created"
+                ) {
+                  void qc.invalidateQueries({ queryKey: ["threads"] });
+                  void qc.invalidateQueries({ queryKey: ["messages"] });
+                  void qc.invalidateQueries({ queryKey: ["seller-state"] });
+                } else {
+                  refreshAll();
+                }
               }
             }
           }
@@ -142,7 +176,7 @@ export function SellerApp({
       closed = true;
       abort.abort();
     };
-  }, [refreshAll]);
+  }, [qc, refreshAll]);
 
   useEffect(() => {
     const n = state.data?.newOrderCount;
@@ -188,7 +222,9 @@ export function SellerApp({
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-paper">
       {!net || !connected ? (
         <div className="bg-warn px-4 py-2 text-center text-xs text-paper">
-          {!net ? "اینترنت قطع است. پس از وصل شدن، سفارش‌ها همگام می‌شوند." : "ارتباط لحظه‌ای قطع شد. در حال اتصال دوباره…"}
+          {!net
+            ? "اینترنت قطع است. پس از وصل شدن، سفارش‌ها همگام می‌شوند."
+            : "ارتباط لحظه‌ای قطع شد. در حال اتصال دوباره…"}
         </div>
       ) : null}
       <header className="flex items-center gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">

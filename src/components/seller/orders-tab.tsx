@@ -8,7 +8,7 @@ import {
   listSellerOrders,
 } from "@/lib/toranj/api/orders";
 import { listSellerCustomers } from "@/lib/toranj/api/customers";
-import { ORDER_STATUSES } from "@/lib/toranj/constants";
+import { ORDER_STATUSES, PAYMENT_LABEL, PAYMENT_STATUSES } from "@/lib/toranj/constants";
 import { toFaError } from "@/lib/toranj/errors";
 import {
   customerFullName,
@@ -20,7 +20,7 @@ import { parseOrderLines } from "@/lib/toranj/parse-items";
 import { displayPhone } from "@/lib/toranj/phone";
 import type { Order } from "@/lib/toranj/types";
 import { toast } from "sonner";
-import { Btn, EmptyState, Field, Sheet, StatusBadge, inputClass } from "./ui";
+import { Btn, EmptyState, Field, PaymentBadge, Sheet, StatusBadge, inputClass } from "./ui";
 
 const FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "همه" },
@@ -118,7 +118,10 @@ export function OrdersTab({
                         {displayPhone(order.customerPhone)}
                       </p>
                     </div>
-                    <StatusBadge status={order.status} />
+                    <div className="flex flex-col items-end gap-1">
+                      <StatusBadge status={order.status} />
+                      <PaymentBadge status={order.paymentStatus} />
+                    </div>
                   </div>
                   <p className="mt-3 line-clamp-2 text-sm text-ink-soft">
                     {order.items.map(itemSummary).join(" · ") || "بدون قلم"}
@@ -178,16 +181,16 @@ function OrderSheet({
     onError: (e) => toast.error(toFaError(e)),
   });
   const payMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (paymentStatus: string) =>
       changeOrderPayment({
         data: {
           id: order!.id,
-          paymentStatus: "paid",
+          paymentStatus,
           totalAmount: amount ? Number(amount) : order!.totalAmount,
         },
       }),
     onSuccess: () => {
-      toast.success("پرداخت ثبت شد.");
+      toast.success("وضعیت پرداخت به‌روز شد.");
       onChanged();
     },
     onError: (e) => toast.error(toFaError(e)),
@@ -202,6 +205,10 @@ function OrderSheet({
               {displayPhone(order.customerPhone)}
             </p>
             <p className="mt-1 text-xs text-ink-faint">{formatDateTime(order.createdAt)}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <StatusBadge status={order.status} />
+              <PaymentBadge status={order.paymentStatus} />
+            </div>
           </div>
           <ul className="divide-y divide-line rounded-2xl bg-paper">
             {order.items.map((item) => (
@@ -214,8 +221,11 @@ function OrderSheet({
           {order.notes ? (
             <p className="rounded-xl bg-paper-2 px-3 py-2 text-sm">توضیحات: {order.notes}</p>
           ) : null}
+          {order.totalAmount != null ? (
+            <p className="text-sm font-medium">مبلغ: {formatToman(order.totalAmount)}</p>
+          ) : null}
           <div>
-            <p className="mb-2 text-sm font-medium">تغییر وضعیت</p>
+            <p className="mb-2 text-sm font-medium">تغییر وضعیت سفارش</p>
             <div className="flex flex-wrap gap-2">
               {ORDER_STATUSES.map((s) => (
                 <button
@@ -230,6 +240,22 @@ function OrderSheet({
               ))}
             </div>
           </div>
+          <div>
+            <p className="mb-2 text-sm font-medium">وضعیت پرداخت</p>
+            <div className="flex flex-wrap gap-2">
+              {PAYMENT_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={payMut.isPending}
+                  onClick={() => payMut.mutate(s)}
+                  className={`rounded-full px-3 py-2 text-xs ${order.paymentStatus === s ? "bg-brand text-brand-fg" : "bg-paper-2 text-ink-soft"}`}
+                >
+                  {PAYMENT_LABEL[s]}
+                </button>
+              ))}
+            </div>
+          </div>
           <Field label="مبلغ (تومان)">
             <input
               className={inputClass}
@@ -240,9 +266,6 @@ function OrderSheet({
               placeholder="اختیاری"
             />
           </Field>
-          <Btn onClick={() => payMut.mutate()} disabled={payMut.isPending} className="w-full">
-            ثبت پرداخت‌شده
-          </Btn>
         </div>
       ) : null}
     </Sheet>

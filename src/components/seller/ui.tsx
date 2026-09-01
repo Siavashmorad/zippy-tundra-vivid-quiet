@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { ORDER_STATUSES, STATUS_LABEL, type OrderStatus } from "@/lib/toranj/constants";
+import {
+  ORDER_STATUSES,
+  PAYMENT_LABEL,
+  STATUS_LABEL,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/lib/toranj/constants";
 import { cn } from "@/lib/utils";
 
 export function Btn({
@@ -64,6 +70,23 @@ export function StatusBadge({ status }: { status: string }) {
             : status === "preparing"
               ? "bg-warn/15 text-warn"
               : "bg-ink/8 text-ink";
+  return (
+    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", tone)}>
+      {label}
+    </span>
+  );
+}
+
+export function PaymentBadge({ status }: { status: string }) {
+  const label = PAYMENT_LABEL[status as PaymentStatus] ?? status;
+  const tone =
+    status === "paid"
+      ? "bg-leaf/15 text-leaf"
+      : status === "pending"
+        ? "bg-warn/15 text-warn"
+        : status === "rejected"
+          ? "bg-brand/10 text-brand"
+          : "bg-paper-2 text-ink-soft";
   return (
     <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", tone)}>
       {label}
