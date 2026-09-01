@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { displayPhone, normalizeIranPhone, parseContactLines, toEnglishDigits } from "./phone";
+import { displayPhone, normalizeIranPhone, parseContactLines, toEnglishDigits } from "./phone.ts";
 
 describe("toranj phone", () => {
   it("normalizes local, plus, and persian digits", () => {

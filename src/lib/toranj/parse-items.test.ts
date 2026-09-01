@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseOrderLines } from "./parse-items";
+import { parseOrderLines } from "./parse-items.ts";
 
 describe("parseOrderLines", () => {
   it("parses persian produce lists", () => {
