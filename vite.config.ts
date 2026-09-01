@@ -175,6 +175,14 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Vite 8.2 + Rolldown 1.2.2+ can split the TanStack Start SSR entry into
+            // a facade that re-exports an undeclared `ssr_exports` binding. Node then
+            // throws SyntaxError on every request (HTTP 500 on /__server).
+            // Keep the SSR service as a single module until Rolldown ships a fix.
+            // @see https://github.com/TanStack/router/issues/8031
+            // @see https://github.com/nitrojs/nitro/issues/4533
+            // @see https://github.com/rolldown/rolldown/issues/10734
+            inlineDynamicImports: true,
           }),
         ]
       : []),
