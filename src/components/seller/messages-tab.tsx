@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { Megaphone, Send } from "lucide-react";
 import {
+  getBroadcastAudienceCount,
   listSellerMessages,
   listSellerThreads,
   readSellerThread,
   searchSellerMessages,
+  sendSellerBroadcast,
   sendSellerChat,
 } from "@/lib/toranj/api/messages";
 import { toFaError } from "@/lib/toranj/errors";
 import { customerFullName, formatTime, relativeTime } from "@/lib/toranj/format";
 import { displayPhone } from "@/lib/toranj/phone";
 import { toast } from "sonner";
-import { EmptyState, inputClass } from "./ui";
+import { Btn, EmptyState, Field, Sheet, inputClass } from "./ui";
 
 export function MessagesTab({
   selectedId,
@@ -22,6 +24,7 @@ export function MessagesTab({
   onSelect: (id?: string) => void;
 }) {
   const [q, setQ] = useState("");
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const threads = useQuery({
     queryKey: ["threads", q],
     queryFn: () => listSellerThreads({ data: { q } }),
@@ -38,13 +41,17 @@ export function MessagesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="px-4 pb-3">
+      <div className="flex gap-2 px-4 pb-3">
         <input
           className={inputClass}
           placeholder="جستجوی گفتگو یا متن پیام"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <Btn variant="line" className="shrink-0 px-3" onClick={() => setBroadcastOpen(true)}>
+          <Megaphone className="size-4" />
+          همگانی
+        </Btn>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
         {search.data && q.trim().length > 1 ? (
@@ -115,7 +122,84 @@ export function MessagesTab({
           </ul>
         )}
       </div>
+      <BroadcastSheet open={broadcastOpen} onClose={() => setBroadcastOpen(false)} />
     </div>
+  );
+}
+
+function BroadcastSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [body, setBody] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const audience = useQuery({
+    queryKey: ["broadcast-audience"],
+    queryFn: () => getBroadcastAudienceCount(),
+    enabled: open,
+  });
+  const send = useMutation({
+    mutationFn: () => sendSellerBroadcast({ data: { body, confirm: true as const } }),
+    onSuccess: (res) => {
+      toast.success(`پیام برای ${res.recipientCount.toLocaleString("fa-IR")} مشتری ارسال شد.`);
+      setBody("");
+      setConfirming(false);
+      void qc.invalidateQueries({ queryKey: ["threads"] });
+      void qc.invalidateQueries({ queryKey: ["messages"] });
+      onClose();
+    },
+    onError: (e) => toast.error(toFaError(e)),
+  });
+  const count = audience.data?.count ?? 0;
+
+  return (
+    <Sheet open={open} onClose={onClose} title="پیام همگانی">
+      <div className="space-y-4">
+        <p className="text-sm text-ink-soft">
+          این پیام برای همه مشتریان فروشگاه ارسال می‌شود. قبل از ارسال تعداد گیرندگان را بررسی کنید.
+        </p>
+        <Field label="متن پیام">
+          <textarea
+            className={`${inputClass} h-36 py-3`}
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value);
+              setConfirming(false);
+            }}
+            placeholder="مثلاً: فردا تحویل فقط تا ساعت ۱۲"
+            maxLength={2000}
+          />
+        </Field>
+        <p className="rounded-xl bg-paper-2 px-3 py-2 text-sm">
+          این پیام برای {" "}
+          <strong>{count.toLocaleString("fa-IR")}</strong> مشتری ارسال خواهد شد.
+        </p>
+        {!confirming ? (
+          <Btn
+            className="w-full"
+            disabled={!body.trim() || count === 0}
+            onClick={() => setConfirming(true)}
+          >
+            ادامه و تأیید ارسال
+          </Btn>
+        ) : (
+          <div className="space-y-2 rounded-2xl border border-brand/30 bg-brand/5 p-3">
+            <p className="text-sm font-medium">آیا از ارسال همگانی مطمئن هستید؟</p>
+            <p className="text-xs text-ink-soft">ارسال دوباره تصادفی انجام نمی‌شود؛ فقط با تأیید شما.</p>
+            <div className="flex gap-2">
+              <Btn
+                className="flex-1"
+                disabled={send.isPending}
+                onClick={() => send.mutate()}
+              >
+                {send.isPending ? "در حال ارسال…" : "بله، ارسال شود"}
+              </Btn>
+              <Btn variant="line" className="flex-1" onClick={() => setConfirming(false)}>
+                انصراف
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
+    </Sheet>
   );
 }
 
