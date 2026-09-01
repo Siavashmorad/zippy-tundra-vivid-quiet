@@ -1,4 +1,4 @@
-import { toEnglishDigits } from "./phone";
+import { toEnglishDigits } from "./phone.ts";
 
 export type ParsedItem = {
   name: string;
