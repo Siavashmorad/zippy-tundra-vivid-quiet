@@ -45,14 +45,16 @@ jobs:
         run: npm ci --registry=https://registry.npmjs.org/
       - name: Install Capacitor tooling
         run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
-      - name: Validate web application
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production web build
         env:
           VITE_AUTH_ENABLED: "true"
-        run: |
-          npm run typecheck
-          npm run lint
-          npm test
-          npm run build
+        run: npm run build
       - name: Check production backend
         run: |
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
