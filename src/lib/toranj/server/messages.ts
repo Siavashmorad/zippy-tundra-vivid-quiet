@@ -204,6 +204,24 @@ export async function createBroadcast(
         values (${msgId}, ${shop.id}, ${customerId}, 'seller', ${userId}, ${text}, now())`;
       await sql`insert into broadcast_recipients (broadcast_id, customer_id, message_id)
         values (${broadcastId}, ${customerId}, ${msgId})`;
+
+      const customerRows = await sql<Record<string, unknown>>`
+        select * from customers
+        where id = ${customerId} and shop_id = ${shop.id}
+        limit 1`;
+      const customer = customerRows[0] ? mapCustomer(customerRows[0]) : null;
+      if (customer?.userId) {
+        await notifyUserSafe({
+          shopId: shop.id,
+          userId: customer.userId,
+          type: "message.broadcast",
+          title: "پیام جدید از ترنج",
+          body: text.slice(0, 120),
+          payload: { customerId, messageId: msgId, broadcastId },
+          url: "/c",
+          tag: `broadcast-${broadcastId}`,
+        });
+      }
     }
   }
 
