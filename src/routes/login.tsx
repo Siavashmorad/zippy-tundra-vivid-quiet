@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -15,6 +15,8 @@ const homeSearch = {
   customer: undefined as undefined,
 };
 
+const LAST_ACCOUNT_KEY = "toranj.seller.lastAccount";
+
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
@@ -24,6 +26,15 @@ function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(LAST_ACCOUNT_KEY);
+      if (saved) setPhoneOrEmail(saved);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
 
   if (!isPending && user) {
     void navigate({ to: "/", search: homeSearch });
@@ -54,11 +65,21 @@ function Login() {
           email,
           password,
           name: name.trim(),
+          rememberMe: true,
         });
         if (upErr) throw new Error(upErr.message ?? "ثبت‌نام ناموفق بود.");
       } else {
-        const { error: inErr } = await authClient.signIn.email({ email, password });
+        const { error: inErr } = await authClient.signIn.email({
+          email,
+          password,
+          rememberMe: true,
+        });
         if (inErr) throw new Error(inErr.message ?? "ورود ناموفق بود.");
+      }
+      try {
+        window.localStorage.setItem(LAST_ACCOUNT_KEY, raw);
+      } catch {
+        /* ignore */
       }
       await authClient.getSession();
       navigate({ to: "/", search: homeSearch });
@@ -133,6 +154,9 @@ function Login() {
               placeholder="حداقل ۸ نویسه"
             />
           </label>
+          <p className="text-xs text-ink-faint">
+            پس از ورود موفق، تا ۳۰ روز در این دستگاه وارد می‌مانید و نیازی به ورود دوباره نیست.
+          </p>
           {error ? (
             <p className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand" role="alert">
               {error}

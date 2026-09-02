@@ -35,6 +35,11 @@ export function CustomersTab({
 
   async function syncPicker() {
     try {
+      if (!contactsPickerAvailable()) {
+        toast.message("انتخاب مستقیم مخاطبین روی این دستگاه در دسترس نیست. از ورود متن یا فایل vCard استفاده کنید.");
+        setPasteOpen(true);
+        return;
+      }
       const contacts = await pickDeviceContacts();
       if (contacts.length === 0) {
         toast.error("مخاطب معتبری انتخاب نشد.");
@@ -44,7 +49,10 @@ export function CustomersTab({
       toast.success(`${res.added} مشتری اضافه شد، ${res.skipped} تکراری رد شد.`);
       void qc.invalidateQueries({ queryKey: ["customers"] });
     } catch (e) {
-      toast.error(toFaError(e));
+      const msg = toFaError(e);
+      toast.error(msg);
+      // Most Android WebViews (including Capacitor) lack Contact Picker — open fallback.
+      setPasteOpen(true);
     }
   }
 
@@ -63,16 +71,13 @@ export function CustomersTab({
           <Plus className="size-4" />
           مشتری جدید
         </Btn>
-        {contactsPickerAvailable() ? (
-          <Btn variant="line" onClick={() => void syncPicker()}>
-            همگام‌سازی مخاطبین
-          </Btn>
-        ) : (
-          <Btn variant="line" onClick={() => setPasteOpen(true)}>
-            <Upload className="size-4" />
-            ورود مخاطب
-          </Btn>
-        )}
+        <Btn variant="line" onClick={() => void syncPicker()}>
+          همگام‌سازی مخاطبین
+        </Btn>
+        <Btn variant="line" onClick={() => setPasteOpen(true)}>
+          <Upload className="size-4" />
+          ورود مخاطب
+        </Btn>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
         {list.isError ? (
@@ -82,7 +87,7 @@ export function CustomersTab({
         ) : (list.data ?? []).length === 0 ? (
           <EmptyState
             title="هنوز مشتری‌ای ندارید"
-            hint="با اجازه شما مخاطبین گوشی همگام می‌شود. مشتری تکراری ساخته نمی‌شود."
+            hint="می‌توانید مشتری را دستی اضافه کنید یا با «ورود مخاطب» از متن/فایل vCard همگام کنید."
             action={<Btn onClick={() => setAdding(true)}>افزودن مشتری</Btn>}
           />
         ) : (
@@ -389,7 +394,8 @@ function PasteContactsSheet({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Sheet open={open} onClose={onClose} title="ورود مخاطبین">
       <p className="mb-3 text-sm text-ink-soft">
-        مخاطبین فقط با رضایت شما همگام می‌شود. هر خط: نام و شماره. فایل vCard هم قابل انتخاب است.
+        روی بیشتر گوشی‌های اندروید (از جمله اپ نصب‌شده) دسترسی مستقیم به دفترچه تلفن محدود است.
+        هر خط: نام و شماره — یا فایل vCard از مخاطبین گوشی را انتخاب کنید.
       </p>
       <textarea
         className={`${inputClass} h-40 py-3`}
@@ -402,7 +408,7 @@ function PasteContactsSheet({ open, onClose }: { open: boolean; onClose: () => v
           فایل vCard
           <input
             type="file"
-            accept=".vcf,text/vcard"
+            accept=".vcf,text/vcard,text/x-vcard"
             className="hidden"
             onChange={async (e) => {
               const file = e.target.files?.[0];
