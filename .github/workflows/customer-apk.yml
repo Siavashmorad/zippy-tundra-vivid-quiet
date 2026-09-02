@@ -1,0 +1,83 @@
+name: Toranj Customer Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "capacitor.customer.config.ts"
+      - ".github/workflows/customer-apk.yml"
+      - "src/components/customer/**"
+      - "src/lib/toranj/api/customer.ts"
+      - "src/routes/c.tsx"
+      - "src/routes/customer-login.tsx"
+      - "src/lib/toranj/server/**"
+      - "src/lib/auth/**"
+      - "src/styles.css"
+      - "assets/icons/toranj_customer.svg"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  customer-apk:
+    name: Build مشتری ترنج APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: npm ci --registry=https://registry.npmjs.org/
+      - name: Install Capacitor tooling
+        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
+      - name: Validate web application
+        env:
+          VITE_AUTH_ENABLED: "true"
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run build
+      - name: Check production backend
+        run: |
+          node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
+      - name: Generate customer icon PNG
+        run: |
+          mkdir -p resources
+          if command -v convert >/dev/null 2>&1; then convert -background none assets/icons/toranj_customer.svg -resize 1024x1024 resources/icon.png; fi
+      - name: Add Android platform
+        run: npx cap --config capacitor.customer.config.ts add android
+      - name: Generate Android assets
+        run: |
+          if [ -f resources/icon.png ]; then npx capacitor-assets generate --android || true; fi
+      - name: Sync Capacitor
+        run: npx cap --config capacitor.customer.config.ts sync android
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Verify APK
+        run: |
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload customer APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: toranj-customer-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
