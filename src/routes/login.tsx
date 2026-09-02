@@ -61,11 +61,13 @@ function Login() {
           setError("نام فروشنده را وارد کنید.");
           return;
         }
+        // Better Auth's signUp.email type does not expose rememberMe at the
+        // top level. The server session policy already makes the new session
+        // persistent for 30 days.
         const { error: upErr } = await authClient.signUp.email({
           email,
           password,
           name: name.trim(),
-          rememberMe: true,
         });
         if (upErr) throw new Error(upErr.message ?? "ثبت‌نام ناموفق بود.");
       } else {
