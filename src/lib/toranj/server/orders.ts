@@ -5,9 +5,9 @@ import { nid } from "../ids";
 import { customerFullName, itemSummary } from "../format";
 import type { Order, OrderItem } from "../types";
 import { findCustomerByPhone, getCustomerForSeller, insertCustomer } from "./customers";
-import { createNotification, emitShopEvent } from "./events";
+import { emitShopEvent } from "./events";
+import { notifyUserSafe } from "./notify";
 import { asIso, mapCustomer, mapItem } from "./map";
-import { sendPushToUser } from "./push";
 import { requireShopByCode, requireShopByOwner } from "./shop";
 import { normalizeIranPhone } from "../phone";
 
@@ -216,17 +216,13 @@ export async function createOrderFromCustomer(input: {
       source: "customer_app",
     });
   }
-  await createNotification({
+  await notifyUserSafe({
     shopId: shop.id,
     userId: shop.ownerUserId,
     type: "order.new",
     title: "سفارش جدید",
     body: `${customerFullName(customer.firstName, customer.lastName)}: ${preview}`,
     payload: { orderId, customerId: customer.id },
-  });
-  await sendPushToUser(shop.ownerUserId, {
-    title: "سفارش جدید",
-    body: `${customerFullName(customer.firstName, customer.lastName)} — ${preview}`,
     url: `/?tab=orders&order=${orderId}`,
     tag: `order-${orderId}`,
   });
@@ -256,17 +252,16 @@ export async function setOrderStatus(
   const customer = customerRows[0] ? mapCustomer(customerRows[0]) : null;
   const faStatus = STATUS_LABEL[status as OrderStatus] ?? status;
   if (customer?.userId) {
-    await createNotification({
+    const isCancel = status === "cancelled";
+    await notifyUserSafe({
       shopId: shop.id,
       userId: customer.userId,
-      type: "order.status",
-      title: "به‌روزرسانی سفارش",
-      body: `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`,
+      type: isCancel ? "order.cancelled" : "order.status",
+      title: isCancel ? "لغو سفارش" : "به‌روزرسانی سفارش",
+      body: isCancel
+        ? "سفارش شما لغو شد."
+        : `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`,
       payload: { orderId, status },
-    });
-    await sendPushToUser(customer.userId, {
-      title: "وضعیت سفارش",
-      body: `سفارش شما به «${faStatus}» تغییر کرد.`,
       url: "/c",
       tag: `order-${orderId}`,
     });

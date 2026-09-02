@@ -1,4 +1,9 @@
-import { getPushPublicKey, registerPushSubscription } from "@/lib/toranj/api/push";
+import {
+  getPushPublicKey,
+  registerDeviceToken,
+  registerPushSubscription,
+  unregisterDeviceToken,
+} from "@/lib/toranj/api/push";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -9,7 +14,33 @@ function urlBase64ToUint8Array(base64String: string) {
   return out;
 }
 
-export async function enablePush(): Promise<"granted" | "denied" | "unsupported"> {
+export async function enablePush(appRole: "seller" | "customer" = "seller"): Promise<
+  "granted" | "denied" | "unsupported"
+> {
+  // Capacitor native path (when plugin is present on device builds).
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) {
+      const mod = await import("@capacitor/push-notifications").catch(() => null);
+      if (mod?.PushNotifications) {
+        const perm = await mod.PushNotifications.requestPermissions();
+        if (perm.receive !== "granted") return "denied";
+        await mod.PushNotifications.register();
+        await new Promise<void>((resolve) => {
+          void mod.PushNotifications.addListener("registration", (token) => {
+            void registerDeviceToken({
+              data: { token: token.value, platform: "android", appRole },
+            }).finally(() => resolve());
+          });
+          window.setTimeout(() => resolve(), 4000);
+        });
+        return "granted";
+      }
+    }
+  } catch {
+    /* fall through to web push */
+  }
+
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
     return "unsupported";
   }
@@ -35,6 +66,14 @@ export async function enablePush(): Promise<"granted" | "denied" | "unsupported"
     },
   });
   return "granted";
+}
+
+export async function disablePush(token?: string): Promise<void> {
+  try {
+    await unregisterDeviceToken({ data: token ? { token } : {} });
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function registerSw(): Promise<void> {
