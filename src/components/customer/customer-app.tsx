@@ -2,14 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { signOut } from "@/lib/auth/client";
 import { getCustomerState, listCustomerOrders, registerCustomer, createCustomerOrder } from "@/lib/toranj/api/customer";
 import { formatDateTime, formatToman, itemSummary, statusLabel } from "@/lib/toranj/format";
-import type { CardInfo } from "@/lib/toranj/types";
 
-const tabs = ["سفارش", "تاریخچه", "حساب من"] as const;
-type Tab = (typeof tabs)[number];
+type Tab = "سفارش" | "تاریخچه" | "حساب من";
 type Item = { name: string; weight: number | null; quantity: number | null; unit: string; notes: string };
 type CustomerState = {
   customer: { firstName: string; lastName: string; phone: string; address: string } | null;
-  shop: { name: string; publicCode: string; isOnline: boolean; card: CardInfo };
+  shop: { name: string; publicCode: string; phone: string; isOnline: boolean; lastSeenAt: string | null; card: { holderName: string; cardNumber: string; bankName: string; extraInfo: string } };
 };
 type CustomerOrder = { id: string; status: string; notes: string; totalAmount: number | null; paymentStatus: string; createdAt: string; items: Array<{ name: string; weight: number | null; quantity: number | null; unit: string; notes: string }> };
 
@@ -37,7 +35,7 @@ export function CustomerApp() {
     if (!cleanItems.length) { setError("حداقل یک کالا وارد کنید."); return; }
     setBusy(true); setError("");
     try {
-      await createCustomerOrder({ items: cleanItems, notes: "" });
+      await createCustomerOrder({ data: { items: cleanItems, notes: "" } });
       setItems([{ name: "", weight: null, quantity: null, unit: "kg", notes: "" }]);
       setTab("تاریخچه"); await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "ارسال سفارش ناموفق بود."); }
@@ -46,8 +44,8 @@ export function CustomerApp() {
 
   return <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-paper pb-24">
     <header className="sticky top-0 z-10 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur"><div className="flex items-center justify-between"><div><h1 className="text-lg font-bold">مشتری ترنج</h1><p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-soft"><span className={`size-2 rounded-full ${state?.shop.isOnline ? "bg-green-500" : "bg-gray-400"}`} />{state?.shop.isOnline ? "فروشنده آنلاین است" : "فروشنده آفلاین است"}</p></div><button className="text-xs text-ink-soft" onClick={() => void refresh()}>به‌روزرسانی</button></div></header>
-    <section className="flex-1 px-4 py-4">{error && <div className="mb-3 rounded-xl bg-brand/10 px-3 py-2 text-sm text-brand" role="alert">{error}</div>}{tab === "سفارش" && <OrderTab items={items} updateItem={updateItem} addItem={() => setItems((x) => [...x, { name: "", weight: null, quantity: null, unit: "kg", notes: "" }])} removeItem={(i) => setItems((x) => x.filter((_, n) => n !== i))} send={sendOrder} busy={busy} />}{tab === "تاریخچه" && <HistoryTab orders={orders} />}{tab === "حساب من" && <AccountTab state={state} onSaved={refresh} onLogout={() => void signOut("/customer-login")} />}</section>
-    <nav className="fixed bottom-0 left-1/2 z-20 grid w-full max-w-md -translate-x-1/2 grid-cols-3 border-t border-line bg-surface/95 backdrop-blur">{tabs.map((name) => <button key={name} className={`py-3 text-sm font-medium ${tab === name ? "text-brand" : "text-ink-soft"}`} onClick={() => setTab(name)}>{name}</button>)}</nav>
+    <section className="flex-1 px-4 py-4">{error && <div className="mb-3 rounded-xl bg-brand/10 px-3 py-2 text-sm text-brand" role="alert">{error}</div>}{tab === "سفارش" && <OrderTab items={items} updateItem={updateItem} addItem={() => setItems((x) => [...x, { name: "", weight: null, quantity: null, unit: "kg", notes: "" }])} removeItem={(i) => setItems((x) => x.filter((_, n) => n !== i))} send={sendOrder} busy={busy} />}{tab === "تاریخچه" && <HistoryTab orders={orders} />}{tab === "حساب من" && <AccountTab state={state} onSaved={refresh} onLogout={() => void signOut("/customer-login" as never)} />}</section>
+    <nav className="fixed bottom-0 left-1/2 z-20 grid w-full max-w-md -translate-x-1/2 grid-cols-3 border-t border-line bg-surface/95 backdrop-blur">{(["سفارش", "تاریخچه", "حساب من"] as const).map((name) => <button key={name} className={`py-3 text-sm font-medium ${tab === name ? "text-brand" : "text-ink-soft"}`} onClick={() => setTab(name)}>{name}</button>)}</nav>
   </main>;
 }
 
@@ -62,6 +60,6 @@ function HistoryTab({ orders }: { orders: CustomerOrder[] }) {
 function AccountTab({ state, onSaved, onLogout }: { state: CustomerState | null; onSaved: () => Promise<void>; onLogout: () => void }) {
   const [firstName, setFirstName] = useState(state?.customer?.firstName ?? ""); const [lastName, setLastName] = useState(state?.customer?.lastName ?? ""); const [phone, setPhone] = useState(state?.customer?.phone ?? ""); const [address, setAddress] = useState(state?.customer?.address ?? ""); const [busy, setBusy] = useState(false); const [localError, setLocalError] = useState("");
   useEffect(() => { setFirstName(state?.customer?.firstName ?? ""); setLastName(state?.customer?.lastName ?? ""); setPhone(state?.customer?.phone ?? ""); setAddress(state?.customer?.address ?? ""); }, [state?.customer]);
-  async function save() { setBusy(true); setLocalError(""); try { await registerCustomer({ firstName: firstName.trim(), lastName: lastName.trim(), phone, address }); await onSaved(); } catch (e) { setLocalError(e instanceof Error ? e.message : "ذخیره اطلاعات ناموفق بود."); } finally { setBusy(false); } }
+  async function save() { setBusy(true); setLocalError(""); try { await registerCustomer({ data: { firstName: firstName.trim(), lastName: lastName.trim(), phone, address } }); await onSaved(); } catch (e) { setLocalError(e instanceof Error ? e.message : "ذخیره اطلاعات ناموفق بود."); } finally { setBusy(false); } }
   return <div className="space-y-3"><div className="rounded-2xl bg-surface p-4 shadow-card"><h2 className="font-bold">اطلاعات من</h2><div className="mt-4 space-y-2">{[["نام", firstName, setFirstName], ["نام خانوادگی", lastName, setLastName], ["شماره موبایل", phone, setPhone], ["آدرس", address, setAddress]].map(([label, value, setter]) => <label key={label as string} className="block text-sm"><span className="mb-1 block">{label as string}</span><input className="h-11 w-full rounded-xl border border-line bg-paper px-3" value={value as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)} /></label>)}</div>{localError && <p className="mt-2 rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{localError}</p>}<button type="button" disabled={busy} className="mt-3 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-brand-fg disabled:opacity-60" onClick={() => void save()}>{busy ? "در حال ذخیره…" : "ذخیره اطلاعات"}</button></div>{state?.shop.card && <div className="rounded-2xl bg-surface p-4 shadow-card"><h2 className="font-bold">اطلاعات فروشگاه</h2><p className="mt-3 text-sm">{state.shop.name}</p><p className="mt-1 text-sm">{state.shop.card.holderName || "صاحب کارت ثبت نشده"}</p><p className="mt-1 font-mono text-base" dir="ltr">{state.shop.card.cardNumber || "شماره کارت ثبت نشده"}</p><p className="mt-1 text-xs text-ink-soft">{state.shop.card.bankName}</p></div>}<button type="button" className="w-full rounded-xl border border-line py-3 text-sm text-brand" onClick={onLogout}>خروج از حساب</button></div>;
 }
