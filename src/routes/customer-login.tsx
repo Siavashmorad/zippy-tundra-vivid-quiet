@@ -4,6 +4,7 @@ import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { ToranjMark } from "@/components/brand/toranj-mark";
 import { normalizeIranPhone } from "@/lib/toranj/phone";
+import { registerCustomer } from "@/lib/toranj/api/customer";
 import { faErr } from "@/lib/toranj/errors";
 
 export const Route = createFileRoute("/customer-login")({ component: CustomerLogin });
@@ -39,6 +40,7 @@ function CustomerLogin() {
         if (!firstName.trim() || !lastName.trim()) throw new Error("نام و نام خانوادگی را وارد کنید.");
         const result = await authClient.signUp.email({ email, password, name: `${firstName.trim()} ${lastName.trim()}` });
         if (result.error) throw new Error(result.error.message ?? "ثبت‌نام ناموفق بود.");
+        await registerCustomer({ firstName: firstName.trim(), lastName: lastName.trim(), phone: normalized });
       } else {
         const result = await authClient.signIn.email({ email, password, rememberMe: true });
         if (result.error) throw new Error(result.error.message ?? "ورود ناموفق بود.");
