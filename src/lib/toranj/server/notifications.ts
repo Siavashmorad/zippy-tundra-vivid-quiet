@@ -5,21 +5,26 @@ export type UserNotification = {
   type: string;
   title: string;
   body: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, string>;
   readAt: string | null;
   createdAt: string;
 };
 
 function mapRow(row: Record<string, unknown>): UserNotification {
-  let payload: Record<string, unknown> = {};
+  let payload: Record<string, string> = {};
   if (typeof row.payload === "string") {
     try {
-      payload = JSON.parse(row.payload) as Record<string, unknown>;
+      const parsed = JSON.parse(row.payload) as Record<string, unknown>;
+      payload = Object.fromEntries(
+        Object.entries(parsed).map(([key, value]) => [key, String(value)]),
+      );
     } catch {
       payload = {};
     }
   } else if (row.payload && typeof row.payload === "object") {
-    payload = row.payload as Record<string, unknown>;
+    payload = Object.fromEntries(
+      Object.entries(row.payload as Record<string, unknown>).map(([key, value]) => [key, String(value)]),
+    );
   }
   return {
     id: String(row.id),
