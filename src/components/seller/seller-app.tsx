@@ -4,6 +4,10 @@ import { Bell, Settings } from "lucide-react";
 import { getBearerToken } from "@/lib/auth/client";
 import type { AppUser } from "@/lib/auth/use-current-user";
 import { getSellerState, heartbeat, listNotifications, markNotificationsRead } from "@/lib/toranj/api/shop";
+import {
+  deleteMyNotification,
+  markMyNotificationRead,
+} from "@/lib/toranj/api/notifications";
 import { HEARTBEAT_MS } from "@/lib/toranj/constants";
 import { toFaError } from "@/lib/toranj/errors";
 import { relativeTime } from "@/lib/toranj/format";
@@ -147,7 +151,12 @@ export function SellerApp({
                 if (ev.type === "order.created" || ev.type === "order.updated") {
                   void qc.invalidateQueries({ queryKey: ["orders"] });
                   void qc.invalidateQueries({ queryKey: ["seller-state"] });
-                } else if (ev.type === "customer.created" || ev.type === "customer.updated" || ev.type === "customer.synced") {
+                  void qc.invalidateQueries({ queryKey: ["notifications"] });
+                } else if (
+                  ev.type === "customer.created" ||
+                  ev.type === "customer.updated" ||
+                  ev.type === "customer.synced"
+                ) {
                   void qc.invalidateQueries({ queryKey: ["customers"] });
                   void qc.invalidateQueries({ queryKey: ["seller-state"] });
                 } else if (
@@ -158,6 +167,7 @@ export function SellerApp({
                   void qc.invalidateQueries({ queryKey: ["threads"] });
                   void qc.invalidateQueries({ queryKey: ["messages"] });
                   void qc.invalidateQueries({ queryKey: ["seller-state"] });
+                  void qc.invalidateQueries({ queryKey: ["notifications"] });
                 } else {
                   refreshAll();
                 }
@@ -217,6 +227,30 @@ export function SellerApp({
     { id: "customers", label: "مشتری‌ها", badge: bootstrap.newCustomerCount || undefined },
     { id: "messages", label: "پیام‌ها", badge: bootstrap.unreadMessageCount || undefined },
   ];
+
+  function openNotification(n: {
+    id: string;
+    type: string;
+    payload: Record<string, string>;
+  }) {
+    void markMyNotificationRead({ data: { notificationId: n.id } }).then(() => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: ["seller-state"] });
+    });
+    const order = n.payload.orderId;
+    const customer = n.payload.customerId;
+    if (n.type.startsWith("order") && order) {
+      setTab("orders");
+      setOrderId(order);
+      setNotifs(false);
+      return;
+    }
+    if (n.type.startsWith("message") && customer) {
+      setTab("messages");
+      setCustomerId(customer);
+      setNotifs(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-paper">
@@ -294,16 +328,29 @@ export function SellerApp({
       </nav>
 
       {notifs ? (
-        <div className="mx-4 mt-3 max-h-56 overflow-y-auto rounded-2xl bg-surface p-3 shadow-card">
+        <div className="mx-4 mt-3 max-h-64 overflow-y-auto rounded-2xl bg-surface p-3 shadow-card">
           {(notifications.data ?? []).length === 0 ? (
             <p className="text-sm text-ink-soft">اعلانی نیست.</p>
           ) : (
             <ul className="space-y-2">
               {notifications.data!.map((n) => (
-                <li key={n.id} className="text-sm">
-                  <p className="font-medium">{n.title}</p>
-                  <p className="text-ink-soft">{n.body}</p>
-                  <p className="text-[11px] text-ink-faint">{relativeTime(n.createdAt)}</p>
+                <li key={n.id} className="border-b border-line pb-2 text-sm last:border-0">
+                  <button type="button" className="w-full text-right" onClick={() => openNotification(n)}>
+                    <p className="font-medium">{n.title}</p>
+                    <p className="text-ink-soft">{n.body}</p>
+                    <p className="text-[11px] text-ink-faint">{relativeTime(n.createdAt)}</p>
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-brand"
+                    onClick={() =>
+                      void deleteMyNotification({ data: { notificationId: n.id } }).then(() =>
+                        qc.invalidateQueries({ queryKey: ["notifications"] }),
+                      )
+                    }
+                  >
+                    حذف
+                  </button>
                 </li>
               ))}
             </ul>
