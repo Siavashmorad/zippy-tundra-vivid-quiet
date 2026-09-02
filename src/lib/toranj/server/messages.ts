@@ -4,9 +4,9 @@ import { nid } from "../ids";
 import { customerFullName } from "../format";
 import type { Message, Thread } from "../types";
 import { getCustomerForSeller, findCustomerByPhone } from "./customers";
-import { createNotification, emitShopEvent } from "./events";
+import { emitShopEvent } from "./events";
+import { notifyUserSafe } from "./notify";
 import { mapCustomer, mapMessage } from "./map";
-import { sendPushToUser } from "./push";
 import { requireShopByCode, requireShopByOwner } from "./shop";
 import { normalizeIranPhone } from "../phone";
 
@@ -92,17 +92,13 @@ export async function sendSellerMessage(
     senderRole: "seller",
   });
   if (customer.userId) {
-    await createNotification({
+    await notifyUserSafe({
       shopId: shop.id,
       userId: customer.userId,
       type: "message.new",
       title: "پیام جدید از ترنج",
       body: text.slice(0, 120),
       payload: { customerId, messageId: id },
-    });
-    await sendPushToUser(customer.userId, {
-      title: shop.name,
-      body: text.slice(0, 120),
       url: "/c",
       tag: `msg-${customerId}`,
     });
@@ -133,17 +129,13 @@ export async function sendCustomerMessage(input: {
     customerId: customer.id,
     senderRole: "customer",
   });
-  await createNotification({
+  await notifyUserSafe({
     shopId: shop.id,
     userId: shop.ownerUserId,
     type: "message.new",
-    title: `پیام جدید از مشتری`,
-    body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`,
-    payload: { customerId: customer.id, messageId: id },
-  });
-  await sendPushToUser(shop.ownerUserId, {
     title: "پیام جدید از مشتری",
     body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`,
+    payload: { customerId: customer.id, messageId: id },
     url: `/?tab=messages&customer=${customer.id}`,
     tag: `msg-${customer.id}`,
   });
