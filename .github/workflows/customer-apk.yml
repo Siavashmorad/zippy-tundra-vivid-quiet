@@ -9,9 +9,11 @@ on:
       - ".github/workflows/customer-apk.yml"
       - "src/components/customer/**"
       - "src/lib/toranj/api/customer.ts"
+      - "src/lib/toranj/api/push.ts"
+      - "src/lib/toranj/server/**"
+      - "src/lib/toranj/native-push.ts"
       - "src/routes/c.tsx"
       - "src/routes/customer-login.tsx"
-      - "src/lib/toranj/server/**"
       - "src/lib/auth/**"
       - "src/styles.css"
       - "assets/icons/toranj_customer.svg"
@@ -43,8 +45,8 @@ jobs:
           java-version: "21"
       - name: Install dependencies
         run: npm ci --registry=https://registry.npmjs.org/
-      - name: Install Capacitor tooling
-        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
+      - name: Install Capacitor and notification plugins
+        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest @capacitor/push-notifications@latest @capacitor/local-notifications@latest
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -60,45 +62,57 @@ jobs:
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
       - name: Use customer Capacitor config
         run: |
-          # Capacitor CLI has no --config flag; overwrite default config for this job only.
           cp capacitor.customer.config.ts capacitor.config.ts
           mkdir -p dist
-          # Prefer built static assets when present (Vite/Nitro may place them under .vercel)
-          if [ -d .vercel/output/static ]; then
-            cp -R .vercel/output/static/. dist/ || true
-          fi
+          if [ -d .vercel/output/static ]; then cp -R .vercel/output/static/. dist/ || true; fi
       - name: Generate customer icon PNG
         run: |
           mkdir -p resources
-          if command -v convert >/dev/null 2>&1; then
-            convert -background none assets/icons/toranj_customer.svg -resize 1024x1024 resources/icon.png || true
-          fi
-          if [ ! -f resources/icon.png ] && [ -f assets/icons/toranj_customer.svg ]; then
-            cp assets/icons/toranj_customer.svg resources/icon.svg || true
-          fi
+          if command -v convert >/dev/null 2>&1; then convert -background none assets/icons/toranj_customer.svg -resize 1024x1024 resources/icon.png || true; fi
+          if [ ! -f resources/icon.png ] && [ -f assets/icons/toranj_customer.svg ]; then cp assets/icons/toranj_customer.svg resources/icon.svg || true; fi
       - name: Add Android platform
         run: npx cap add android
+      - name: Install Firebase Android configuration
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$FIREBASE_GOOGLE_SERVICES_JSON" ]; then echo 'FIREBASE_GOOGLE_SERVICES_JSON is not configured; native FCM will not work.'; exit 1; fi
+          printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
       - name: Generate Android assets
         run: |
           if [ -f resources/icon.png ]; then npx capacitor-assets generate --android || true; fi
       - name: Sync Capacitor
         run: npx cap sync android
+      - name: Configure Google Services Gradle plugin
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('android')
+          build = root / 'build.gradle'
+          if build.exists() and 'com.google.gms:google-services' not in build.read_text():
+              text = build.read_text()
+              if 'buildscript {' in text:
+                  text = text.replace('buildscript {', 'buildscript {\n    dependencies { classpath "com.google.gms:google-services:4.4.2" }', 1)
+                  build.write_text(text)
+          app = root / 'app' / 'build.gradle'
+          if app.exists() and 'com.google.gms.google-services' not in app.read_text(): app.write_text(app.read_text() + '\napply plugin: "com.google.gms.google-services"\n')
+          PY
       - name: Verify applicationId and app name
         run: |
           grep -q 'ir.toranj.customer' android/app/build.gradle || grep -q 'ir.toranj.customer' android/app/build.gradle.kts || (echo 'applicationId missing' && exit 1)
           grep -q 'مشتری ترنج' android/app/src/main/res/values/strings.xml || (echo 'app name missing' && exit 1)
           echo 'Customer Capacitor identity OK'
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Verify APK
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
-          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          ls -lh android/app/build/outputs/apk/release/app-release.apk
       - name: Upload customer APK
         uses: actions/upload-artifact@v4
         with:
-          name: toranj-customer-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: toranj-customer-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
