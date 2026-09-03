@@ -20,9 +20,32 @@ export async function createNotification(input: {
   payload?: Record<string, string>;
 }): Promise<string> {
   const sql = await getSql();
+  const payload = input.payload ?? {};
+  const eventId = payload.eventId?.trim();
+
+  if (eventId) {
+    const existing = await sql<{ id: string }>`
+      select id from notifications
+      where user_id = ${input.userId}
+        and payload::jsonb->>'eventId' = ${eventId}
+      order by created_at desc
+      limit 1`;
+    if (existing[0]?.id) return String(existing[0].id);
+  }
+
   const id = nid("ntf");
   await sql`insert into notifications (id, shop_id, user_id, type, title, body, payload)
-    values (${id}, ${input.shopId}, ${input.userId}, ${input.type}, ${input.title}, ${input.body}, ${JSON.stringify(input.payload ?? {})})`;
+    values (${id}, ${input.shopId}, ${input.userId}, ${input.type}, ${input.title}, ${input.body}, ${JSON.stringify(payload)})`;
+
+  try {
+    await emitShopEvent(input.shopId, "notification.created", {
+      notificationId: id,
+      userId: input.userId,
+      type: input.type,
+    });
+  } catch (err) {
+    console.error("[notify] realtime event failed", err);
+  }
   return id;
 }
 
