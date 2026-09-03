@@ -22,54 +22,24 @@
   --radius-md: 0.9rem;
   --radius-lg: 1.25rem;
   --radius-xl: 1.75rem;
-  --shadow-card: 0 0 0 1px rgb(28 25 23 / 0.06), 0 1px 2px rgb(28 25 23 / 0.04),
-    0 8px 24px rgb(28 25 23 / 0.05);
+  --shadow-card: 0 0 0 1px rgb(28 25 23 / 0.06), 0 1px 2px rgb(28 25 23 / 0.04), 0 8px 24px rgb(28 25 23 / 0.05);
 }
 
 @layer base {
-  html {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background: var(--color-paper);
-    color: var(--color-ink);
-  }
-  body {
-    margin: 0;
-    min-height: 100dvh;
-    background: var(--color-paper);
-    color: var(--color-ink);
-    font-family: var(--font-sans);
-    line-height: 1.55;
-  }
-  button:not(:disabled),
-  [role="button"]:not(:disabled) {
-    cursor: pointer;
-  }
-  h1,
-  h2,
-  h3 {
-    text-wrap: balance;
-    letter-spacing: -0.02em;
-  }
-  p {
-    text-wrap: pretty;
-  }
-  input,
-  textarea,
-  select {
-    font: inherit;
-  }
-  ::placeholder {
-    color: var(--color-ink-faint);
-  }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--color-paper); color: var(--color-ink); }
+  body { margin: 0; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); line-height: 1.55; }
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.02em; }
+  p { text-wrap: pretty; }
+  input, textarea, select { font: inherit; }
+  ::placeholder { color: var(--color-ink-faint); }
+}
+
+/* Keep fixed app navigation above Android's system navigation bar. */
+@media (pointer: coarse) {
+  nav.fixed.bottom-0 { bottom: max(72px, env(safe-area-inset-bottom)); padding-bottom: 0.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
