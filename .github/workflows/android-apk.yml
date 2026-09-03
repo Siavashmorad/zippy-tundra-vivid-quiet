@@ -23,75 +23,79 @@ jobs:
     name: Build فروشنده ترنج APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
-
       - name: Install project dependencies
         run: npm ci --registry=https://registry.npmjs.org/
-
-      - name: Install Capacitor tooling
-        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest
-
-      # Unit tests / lint / typecheck are owned by seller-validation.yml.
-      # This job focuses on producing a real Android APK that loads production.
+      - name: Install Capacitor and notification plugins
+        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest @capacitor/push-notifications@latest @capacitor/local-notifications@latest
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
       - name: Production web build for APK
         env:
           VITE_AUTH_ENABLED: "true"
         run: npm run build
-
       - name: Check production backend
-        continue-on-error: true
         run: |
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
-
       - name: Prepare Capacitor web directory
         run: mkdir -p dist
-
       - name: Add Android platform
         run: npx cap add android
-
+      - name: Install Firebase Android configuration
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$FIREBASE_GOOGLE_SERVICES_JSON" ]; then echo 'FIREBASE_GOOGLE_SERVICES_JSON is not configured; native FCM will not work.'; exit 1; fi
+          printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
       - name: Generate Android icon assets
         run: |
           mkdir -p resources
-          if [ -f public/icon-512.png ]; then
-            cp public/icon-512.png resources/icon.png
-          elif [ -f assets/icons/toranj_seller.svg ]; then
-            cp assets/icons/toranj_seller.svg resources/icon.svg || true
-          fi
-          if [ -f resources/icon.png ]; then
-            npx capacitor-assets generate --android || true
-          fi
-
+          if [ -f public/icon-512.png ]; then cp public/icon-512.png resources/icon.png; fi
+          if [ -f resources/icon.png ]; then npx capacitor-assets generate --android || true; fi
       - name: Sync Capacitor Android
         run: npx cap sync android
-
-      - name: Build debug APK
+      - name: Configure Google Services Gradle plugin
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('android')
+          settings = root / 'settings.gradle'
+          build = root / 'build.gradle'
+          if build.exists() and 'com.google.gms:google-services' not in build.read_text():
+              text = build.read_text()
+              text = text.replace('buildscript {', 'buildscript {\n    dependencies { classpath "com.google.gms:google-services:4.4.2" }', 1) if 'buildscript {' in text else text
+              build.write_text(text)
+          app = root / 'app' / 'build.gradle'
+          if app.exists() and 'com.google.gms.google-services' not in app.read_text():
+              app.write_text(app.read_text() + '\napply plugin: "com.google.gms.google-services"\n')
+          PY
+      - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
-
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Verify APK
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
-          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
-
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          ls -lh android/app/build/outputs/apk/release/app-release.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: toranj-seller-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: toranj-seller-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
