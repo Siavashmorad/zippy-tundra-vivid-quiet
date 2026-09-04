@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AppProviders } from "@/components/app-providers";
+import { NativePushBootstrap } from "@/components/native-push-bootstrap";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "فروشنده ترنج";
@@ -40,6 +41,7 @@ export const Route = createRootRoute({
         <PreviewHostBridge />
         <AuthProvider>
           <AppProviders>
+            <NativePushBootstrap />
             <Outlet />
           </AppProviders>
         </AuthProvider>
