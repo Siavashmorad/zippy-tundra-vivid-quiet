@@ -21,7 +21,14 @@ function CustomerLogin() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => { try { const saved = localStorage.getItem(LAST_KEY); if (saved) setPhone(saved); } catch {} }, []);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LAST_KEY);
+      if (saved) setPhone(saved);
+    } catch (err) {
+      console.warn("[customer-login] could not restore last account", err);
+    }
+  }, []);
   useEffect(() => { if (!isPending && user) void navigate({ to: "/c" }); }, [isPending, user, navigate]);
 
   async function submit(e: React.FormEvent) {
@@ -40,7 +47,8 @@ function CustomerLogin() {
         const result = await authClient.signIn.email({ email, password, rememberMe: true });
         if (result.error) throw new Error(result.error.message ?? "ورود ناموفق بود.");
       }
-      try { localStorage.setItem(LAST_KEY, normalized); } catch {}
+      try { localStorage.setItem(LAST_KEY, normalized); }
+      catch (err) { console.warn("[customer-login] could not save last account", err); }
       let session = await authClient.getSession();
       if (!session.data?.user) {
         await new Promise((resolve) => setTimeout(resolve, 500));
