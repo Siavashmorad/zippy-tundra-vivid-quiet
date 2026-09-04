@@ -110,12 +110,13 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Verify APK
         run: |
-          test -f android/app/build/outputs/apk/release/app-release.apk
-          ls -lh android/app/build/outputs/apk/release/app-release.apk
+          mapfile -t apks < <(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print)
+          test "${#apks[@]}" -gt 0
+          printf '%s\n' "${apks[@]}"
       - name: Upload customer APK
         uses: actions/upload-artifact@v4
         with:
           name: toranj-customer-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
