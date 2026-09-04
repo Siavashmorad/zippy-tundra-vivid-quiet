@@ -27,7 +27,7 @@ jobs:
           cache: npm
 
       - name: نصب وابستگی‌ها
-        run: npm ci --registry=https://registry.npmjs.org/
+        run: npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
 
       - name: بررسی TypeScript
         run: npm run typecheck
