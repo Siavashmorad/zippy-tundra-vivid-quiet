@@ -1,47 +1,104 @@
+import { LocalNotifications } from "@capacitor/local-notifications";
+import { PushNotifications } from "@capacitor/push-notifications";
+import { Capacitor } from "@capacitor/core";
 import { registerDeviceToken } from "@/lib/toranj/api/push";
 
-type PushPlugin = {
-  requestPermissions: () => Promise<{ receive?: "granted" | "denied" | "prompt" }>;
-  register: () => Promise<void>;
-  addListener: (event: "registration" | "registrationError" | "pushNotificationReceived" | "pushNotificationActionPerformed", cb: (data: any) => void) => Promise<{ remove: () => Promise<void> }>;
+type PushData = Record<string, unknown> & {
+  title?: string;
+  body?: string;
+  url?: string;
 };
-type LocalPlugin = { createChannel?: (options: Record<string, unknown>) => Promise<void>; schedule: (options: { notifications: Array<Record<string, unknown>> }) => Promise<void> };
-type CapacitorWindow = Window & { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { PushNotifications?: PushPlugin; LocalNotifications?: LocalPlugin } } };
 
-function getPlugins() {
-  const c = (window as CapacitorWindow).Capacitor;
-  return { push: c?.Plugins?.PushNotifications, local: c?.Plugins?.LocalNotifications, native: Boolean(c?.isNativePlatform?.()) };
+function openSafeUrl(raw: unknown) {
+  if (typeof raw !== "string" || !raw) return;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.origin === window.location.origin) window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // Ignore malformed or external notification URLs.
+  }
+}
+
+async function registerTokenWithRetry(token: string, appRole: "seller" | "customer") {
+  const delays = [0, 1500, 4000, 10000, 30000, 60000];
+  for (const delay of delays) {
+    if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+    try {
+      await registerDeviceToken({ data: { token, platform: "android", appRole } });
+      return;
+    } catch (err) {
+      console.warn("[native-push] token registration retry failed", err);
+    }
+  }
 }
 
 export async function setupNativePush(appRole: "seller" | "customer") {
-  if (typeof window === "undefined") return () => {};
-  const { push, local, native } = getPlugins();
-  if (!native || !push) return () => {};
+  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return () => {};
+
   try {
-    const permission = await push.requestPermissions();
-    if (permission.receive !== "granted") return () => {};
-    await local?.createChannel?.({ id: "toranj", name: "اعلان‌های ترنج", description: "اعلان سفارش‌ها و پیام‌های ترنج", importance: 5, sound: "default", vibration: true });
-    const listeners: Array<{ remove: () => Promise<void> }> = [];
-    listeners.push(await push.addListener("registration", async ({ value }: { value?: string }) => {
-      if (!value) return;
-      try { await registerDeviceToken({ data: { token: value, platform: "android", appRole } }); }
-      catch (err) { console.error("[native-push] token registration failed", err); }
-    }));
-    listeners.push(await push.addListener("registrationError", (err) => console.error("[native-push] registration error", err)));
-    listeners.push(await push.addListener("pushNotificationReceived", async (notification) => {
-      const title = String(notification?.title ?? notification?.data?.title ?? "ترنج");
-      const body = String(notification?.body ?? notification?.data?.body ?? "اعلان جدید دارید.");
-      if (local) {
-        try { await local.schedule({ notifications: [{ id: Math.floor(Date.now() % 2147483647), title, body, channelId: "toranj", schedule: { at: new Date(Date.now() + 250) }, extra: notification?.data ?? {} }] }); }
-        catch (err) { console.error("[native-push] foreground notification failed", err); }
-      }
-    }));
-    listeners.push(await push.addListener("pushNotificationActionPerformed", ({ notification }) => {
-      const url = notification?.data?.url;
-      if (typeof url === "string" && url) window.location.assign(url);
-    }));
-    await push.register();
-    return () => { for (const listener of listeners) void listener.remove(); };
+    const pushPermission = await PushNotifications.requestPermissions();
+    if (pushPermission.receive !== "granted") {
+      console.warn("[native-push] notification permission was not granted");
+      return () => {};
+    }
+
+    try {
+      await LocalNotifications.requestPermissions();
+      await LocalNotifications.createChannel({
+        id: "toranj",
+        name: "اعلان‌های ترنج",
+        description: "اعلان سفارش‌ها و پیام‌های ترنج",
+        importance: 5,
+        sound: "default",
+        vibration: true,
+      });
+    } catch (err) {
+      console.warn("[native-push] local notification setup failed", err);
+    }
+
+    const listeners = [
+      await PushNotifications.addListener("registration", ({ value }) => {
+        if (!value) return;
+        void registerTokenWithRetry(value, appRole);
+      }),
+      await PushNotifications.addListener("registrationError", (err) => {
+        console.error("[native-push] registration error", err);
+      }),
+      await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
+        const data = (notification.data ?? {}) as PushData;
+        const title = String(notification.title ?? data.title ?? "ترنج");
+        const body = String(notification.body ?? data.body ?? "اعلان جدید دارید.");
+        try {
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: Math.floor(Date.now() % 2147483647),
+                title,
+                body,
+                channelId: "toranj",
+                smallIcon: "ic_stat_icon_config_sample",
+                extra: data,
+                schedule: { at: new Date(Date.now() + 250) },
+              },
+            ],
+          });
+        } catch (err) {
+          console.error("[native-push] foreground notification failed", err);
+        }
+      }),
+      await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
+        openSafeUrl((notification.data as PushData | undefined)?.url);
+      }),
+      await LocalNotifications.addListener("localNotificationActionPerformed", ({ notification }) => {
+        openSafeUrl((notification.extra as PushData | undefined)?.url);
+      }),
+    ];
+
+    await PushNotifications.register();
+
+    return () => {
+      for (const listener of listeners) void listener.remove();
+    };
   } catch (err) {
     console.error("[native-push] setup failed", err);
     return () => {};
