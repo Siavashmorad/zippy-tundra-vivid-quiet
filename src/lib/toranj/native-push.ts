@@ -78,7 +78,6 @@ export async function setupNativePush(appRole: "seller" | "customer") {
                 title,
                 body,
                 channelId: DEFAULT_CHANNEL_ID,
-                smallIcon: "ic_stat_icon_config_sample",
                 extra: data,
                 schedule: { at: new Date(Date.now() + 250) },
               },
