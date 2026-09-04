@@ -9,6 +9,8 @@ type PushData = Record<string, unknown> & {
   url?: string;
 };
 
+const DEFAULT_CHANNEL_ID = "toranj";
+
 function openSafeUrl(raw: unknown) {
   if (typeof raw !== "string" || !raw) return;
   try {
@@ -45,7 +47,7 @@ export async function setupNativePush(appRole: "seller" | "customer") {
     try {
       await LocalNotifications.requestPermissions();
       await LocalNotifications.createChannel({
-        id: "toranj",
+        id: DEFAULT_CHANNEL_ID,
         name: "اعلان‌های ترنج",
         description: "اعلان سفارش‌ها و پیام‌های ترنج",
         importance: 5,
@@ -75,7 +77,7 @@ export async function setupNativePush(appRole: "seller" | "customer") {
                 id: Math.floor(Date.now() % 2147483647),
                 title,
                 body,
-                channelId: "toranj",
+                channelId: DEFAULT_CHANNEL_ID,
                 smallIcon: "ic_stat_icon_config_sample",
                 extra: data,
                 schedule: { at: new Date(Date.now() + 250) },
