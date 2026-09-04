@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "712625830215",
+    "project_id": "toranj-edb68",
+    "storage_bucket": "toranj-edb68.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712625830215:android:70aeb7673e224314dfb462",
+        "android_client_info": {
+          "package_name": "ir.toranj.seller"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDf28rwnl9JU4tA-KSo6HcbAhdyZCYmWN0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
