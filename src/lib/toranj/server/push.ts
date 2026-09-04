@@ -26,8 +26,8 @@ export async function deactivateDeviceToken(userId: string, token?: string): Pro
   await sql`update device_tokens set active = false, last_seen_at = now() where user_id = ${userId}`;
 }
 
-async function getFcmAccess(): Promise<{ token: string; projectId: string } | null> {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim(); if (!raw) return null;
+async function getFcmAccess(raw: string | undefined): Promise<{ token: string; projectId: string } | null> {
+  if (!raw?.trim()) return null;
   try {
     const account = JSON.parse(raw) as { project_id?: string; client_email?: string; private_key?: string };
     if (!account.project_id || !account.client_email || !account.private_key) return null;
@@ -40,10 +40,17 @@ async function getFcmAccess(): Promise<{ token: string; projectId: string } | nu
   } catch (err) { console.error("[push] FCM credentials invalid", err); return null; }
 }
 
+function getFcmSecretForRole(appRole: string | null | undefined): string | undefined {
+  if (appRole === "customer") return process.env.FIREBASE_CUSTOMER_SERVICE_ACCOUNT_JSON ?? process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  return process.env.FIREBASE_SELLER_SERVICE_ACCOUNT_JSON ?? process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+}
+
 async function sendFcmToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
-  const auth = await getFcmAccess(); if (!auth) return; const sql = await getSql();
-  const tokens = await sql<{ id: string; token: string }>`select id, token from device_tokens where user_id = ${userId} and active = true`;
+  const sql = await getSql();
+  const tokens = await sql<{ id: string; token: string; app_role: string | null }>`select id, token, app_role from device_tokens where user_id = ${userId} and active = true`;
   await Promise.all(tokens.map(async (row) => {
+    const auth = await getFcmAccess(getFcmSecretForRole(row.app_role));
+    if (!auth) return;
     try {
       const res = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(auth.projectId)}/messages:send`, { method: "POST", headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { token: row.token, notification: { title: payload.title, body: payload.body }, data: { title: payload.title, body: payload.body, url: payload.url ?? "/", tag: payload.tag ?? "toranj" }, android: { priority: "HIGH", notification: { channel_id: "toranj", sound: "default" } } } }) });
       if (res.status === 404 || res.status === 410) await sql`update device_tokens set active = false where id = ${row.id}`;
