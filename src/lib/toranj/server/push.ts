@@ -6,7 +6,10 @@ import { nid } from "../ids";
 type Vapid = { publicKey: string; privateKey: string };
 async function loadVapid(): Promise<Vapid> {
   const sql = await getSql(); const rows = await sql<{ value: string }>`select value from app_secrets where key = 'vapid' limit 1`;
-  if (rows[0]?.value) { try { return JSON.parse(rows[0].value) as Vapid; } catch {} }
+  if (rows[0]?.value) {
+    try { return JSON.parse(rows[0].value) as Vapid; }
+    catch (err) { console.warn("[push] stored VAPID secret is invalid; generating a new key", err); }
+  }
   const keys = webpush.generateVAPIDKeys();
   await sql`insert into app_secrets (key, value, updated_at) values ('vapid', ${JSON.stringify(keys)}, now()) on conflict (key) do update set value = excluded.value, updated_at = now()`;
   return keys;
