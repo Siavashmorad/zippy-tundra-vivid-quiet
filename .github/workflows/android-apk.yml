@@ -40,7 +40,7 @@ jobs:
       - name: Install project dependencies
         run: npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
       - name: Install Capacitor Android tooling
-        run: npm install --no-save --no-audit --no-fund @capacitor/android@latest @capacitor/cli@latest @capacitor/assets@latest
+        run: npm install --no-save --no-audit --no-fund @capacitor/android@^7.4.4 @capacitor/cli@^7.4.4 @capacitor/assets@^3.0.5
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
