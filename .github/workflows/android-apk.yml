@@ -7,6 +7,7 @@ on:
     paths:
       - "capacitor.config.ts"
       - ".github/workflows/android-apk.yml"
+      - "firebase/seller/google-services.json"
       - "src/**"
       - "public/**"
       - "assets/**"
@@ -37,9 +38,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Install project dependencies
-        run: npm ci --registry=https://registry.npmjs.org/
-      - name: Install Capacitor and notification plugins
-        run: npm install --no-save --no-audit --no-fund @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/assets@latest @capacitor/push-notifications@latest @capacitor/local-notifications@latest
+        run: npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
+      - name: Install Capacitor Android tooling
+        run: npm install --no-save --no-audit --no-fund @capacitor/android@latest @capacitor/cli@latest @capacitor/assets@latest
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -49,6 +50,7 @@ jobs:
       - name: Production web build for APK
         env:
           VITE_AUTH_ENABLED: "true"
+          VITE_TORANJ_APP_ROLE: "seller"
         run: npm run build
       - name: Check production backend
         run: |
@@ -58,11 +60,10 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
       - name: Install Firebase Android configuration
-        env:
-          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -z "$FIREBASE_GOOGLE_SERVICES_JSON" ]; then echo 'FIREBASE_GOOGLE_SERVICES_JSON is not configured; native FCM will not work.'; exit 1; fi
-          printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          test -f firebase/seller/google-services.json
+          mkdir -p android/app
+          cp firebase/seller/google-services.json android/app/google-services.json
       - name: Generate Android icon assets
         run: |
           mkdir -p resources
@@ -75,12 +76,12 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root = Path('android')
-          settings = root / 'settings.gradle'
           build = root / 'build.gradle'
           if build.exists() and 'com.google.gms:google-services' not in build.read_text():
               text = build.read_text()
-              text = text.replace('buildscript {', 'buildscript {\n    dependencies { classpath "com.google.gms:google-services:4.4.2" }', 1) if 'buildscript {' in text else text
-              build.write_text(text)
+              if 'buildscript {' in text:
+                  text = text.replace('buildscript {', 'buildscript {\n    dependencies { classpath "com.google.gms:google-services:4.4.2" }', 1)
+                  build.write_text(text)
           app = root / 'app' / 'build.gradle'
           if app.exists() and 'com.google.gms.google-services' not in app.read_text():
               app.write_text(app.read_text() + '\napply plugin: "com.google.gms.google-services"\n')
