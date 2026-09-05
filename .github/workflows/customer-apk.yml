@@ -100,18 +100,18 @@ jobs:
         run: |
           grep -R -q 'ir.toranj.customer' android/app
           grep -q '"package_name": "ir.toranj.customer"' android/app/google-services.json
-      - name: Build release APK
+      - name: Build installable debug APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-      - name: Verify APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Verify installable APK
         run: |
-          mapfile -t apks < <(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print)
+          mapfile -t apks < <(find android/app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print)
           test "${#apks[@]}" -gt 0
           printf '%s\n' "${apks[@]}"
-      - name: Upload customer APK
+      - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: toranj-customer-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: toranj-customer-installable-apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
