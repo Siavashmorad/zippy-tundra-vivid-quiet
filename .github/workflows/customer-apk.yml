@@ -67,6 +67,8 @@ jobs:
         run: cp capacitor.customer.config.ts capacitor.config.ts
       - name: Add Android platform
         run: npx cap add android
+      - name: Prepare Capacitor Android assets directory
+        run: mkdir -p android/app/src/main/assets
       - name: Install Firebase Android configuration
         run: |
           test -f firebase/customer/google-services.json
