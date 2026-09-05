@@ -57,6 +57,8 @@ jobs:
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
       - name: Add Android platform
         run: npx cap add android
+      - name: Prepare Capacitor Android assets directory
+        run: mkdir -p android/app/src/main/assets
       - name: Install Firebase Android configuration
         run: |
           test -f firebase/seller/google-services.json
