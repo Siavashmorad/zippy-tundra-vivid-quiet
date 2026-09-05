@@ -57,12 +57,9 @@ jobs:
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
       - name: Add Android platform
         run: npx cap add android
-      - name: Prepare Capacitor Android assets directory
-        run: mkdir -p android/app/src/main/assets
       - name: Install Firebase Android configuration
         run: |
           test -f firebase/seller/google-services.json
-          mkdir -p android/app
           cp firebase/seller/google-services.json android/app/google-services.json
       - name: Generate Android icon assets
         run: |
@@ -72,8 +69,22 @@ jobs:
       - name: Prepare Capacitor native web assets
         run: |
           mkdir -p android/app/src/main/assets
+          cat > android/app/src/main/assets/capacitor.config.json <<'JSON'
+          {
+            "appId": "ir.toranj.seller",
+            "appName": "فروشنده ترنج",
+            "webDir": "dist",
+            "server": {
+              "url": "https://zippy-tundra-vivid-quiet.vercel.app",
+              "cleartext": false
+            },
+            "android": {
+              "allowMixedContent": false
+            }
+          }
+          JSON
           npx cap copy android
-          test -f android/app/src/main/assets/capacitor.config.json
+          test -s android/app/src/main/assets/capacitor.config.json
       - name: Sync Capacitor Android
         run: npx cap sync android
       - name: Configure Google Services Gradle plugin
