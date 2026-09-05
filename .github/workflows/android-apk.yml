@@ -51,7 +51,7 @@ jobs:
         env:
           VITE_AUTH_ENABLED: "true"
           VITE_TORANJ_APP_ROLE: "seller"
-        run: npm run build
+        run: node scripts/with-app-env.mjs vite build
       - name: Check production backend
         run: |
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
