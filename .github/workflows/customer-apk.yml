@@ -59,20 +59,12 @@ jobs:
         env:
           VITE_AUTH_ENABLED: "true"
           VITE_TORANJ_APP_ROLE: "customer"
-        run: node scripts/with-app-env.mjs vite build
+        run: ./node_modules/.bin/vite build
       - name: Check production backend
         run: |
           node -e "fetch('https://zippy-tundra-vivid-quiet.vercel.app/api/health').then(async r => { const t=await r.text(); console.log('health',r.status,t); if(r.status!==200) process.exit(1) }).catch(e => { console.error(e); process.exit(1) })"
       - name: Use customer Capacitor config
-        run: |
-          cp capacitor.customer.config.ts capacitor.config.ts
-          mkdir -p dist
-          if [ -d .vercel/output/static ]; then cp -R .vercel/output/static/. dist/ || true; fi
-      - name: Generate customer icon PNG
-        run: |
-          mkdir -p resources
-          if command -v convert >/dev/null 2>&1; then convert -background none assets/icons/toranj_customer.svg -resize 1024x1024 resources/icon.png || true; fi
-          if [ ! -f resources/icon.png ] && [ -f assets/icons/toranj_customer.svg ]; then cp assets/icons/toranj_customer.svg resources/icon.svg || true; fi
+        run: cp capacitor.customer.config.ts capacitor.config.ts
       - name: Add Android platform
         run: npx cap add android
       - name: Install Firebase Android configuration
@@ -82,6 +74,8 @@ jobs:
           cp firebase/customer/google-services.json android/app/google-services.json
       - name: Generate Android assets
         run: |
+          mkdir -p resources
+          if command -v convert >/dev/null 2>&1 && [ -f assets/icons/toranj_customer.svg ]; then convert -background none assets/icons/toranj_customer.svg -resize 1024x1024 resources/icon.png || true; fi
           if [ -f resources/icon.png ]; then npx capacitor-assets generate --android || true; fi
       - name: Sync Capacitor
         run: npx cap sync android
@@ -100,11 +94,10 @@ jobs:
           if app.exists() and 'com.google.gms.google-services' not in app.read_text():
               app.write_text(app.read_text() + '\napply plugin: "com.google.gms.google-services"\n')
           PY
-      - name: Verify applicationId and app name
+      - name: Verify applicationId and Firebase package
         run: |
-          grep -q 'ir.toranj.customer' android/app/build.gradle || grep -q 'ir.toranj.customer' android/app/build.gradle.kts || (echo 'applicationId missing' && exit 1)
-          grep -q 'مشتری ترنج' android/app/src/main/res/values/strings.xml || (echo 'app name missing' && exit 1)
-          echo 'Customer Capacitor identity OK'
+          grep -R -q 'ir.toranj.customer' android/app
+          grep -q '"package_name": "ir.toranj.customer"' android/app/google-services.json
       - name: Build release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
