@@ -4,17 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "capacitor.config.ts"
-      - ".github/workflows/android-apk.yml"
-      - "firebase/seller/google-services.json"
-      - "src/**"
-      - "public/**"
-      - "assets/**"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.config.ts"
-      - "scripts/**"
 
 permissions:
   contents: read
