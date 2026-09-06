@@ -4,25 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "capacitor.customer.config.ts"
-      - ".github/workflows/customer-apk.yml"
-      - "firebase/customer/google-services.json"
-      - "src/components/customer/**"
-      - "src/lib/toranj/api/customer.ts"
-      - "src/lib/toranj/api/push.ts"
-      - "src/lib/toranj/server/**"
-      - "src/lib/toranj/native-push.ts"
-      - "src/components/native-push-bootstrap.tsx"
-      - "src/routes/__root.tsx"
-      - "src/routes/c.tsx"
-      - "src/routes/customer-login.tsx"
-      - "src/lib/auth/**"
-      - "src/styles.css"
-      - "assets/icons/toranj_customer.svg"
-      - "package.json"
-      - "package-lock.json"
-      - "scripts/**"
 
 permissions:
   contents: read
