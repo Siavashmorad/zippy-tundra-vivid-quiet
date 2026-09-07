@@ -96,3 +96,5 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      # CI trigger: rebuild Customer APK from current main.
