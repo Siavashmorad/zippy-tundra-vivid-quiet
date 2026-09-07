@@ -6,10 +6,17 @@ import { registerDeviceToken } from "@/lib/toranj/api/push";
 type PushData = Record<string, unknown> & {
   title?: string;
   body?: string;
+  eventId?: string;
+  orderId?: string;
+  messageId?: string;
+  customerId?: string;
+  type?: string;
   url?: string;
+  tag?: string;
 };
 
 const DEFAULT_CHANNEL_ID = "toranj";
+const seenEventIds = new Set<string>();
 
 function openSafeUrl(raw: unknown) {
   if (typeof raw !== "string" || !raw) return;
@@ -19,6 +26,19 @@ function openSafeUrl(raw: unknown) {
   } catch {
     // Ignore malformed or external notification URLs.
   }
+}
+
+function eventKey(data: PushData) {
+  if (typeof data.eventId === "string" && data.eventId.trim()) return data.eventId.trim();
+  if (typeof data.tag === "string" && data.tag.trim()) return data.tag.trim();
+  return "";
+}
+
+function hashNotificationId(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  const id = Math.abs(hash);
+  return id === 0 ? 1 : id;
 }
 
 async function registerTokenWithRetry(token: string, appRole: "seller" | "customer") {
@@ -68,20 +88,21 @@ export async function setupNativePush(appRole: "seller" | "customer") {
       }),
       await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
         const data = (notification.data ?? {}) as PushData;
+        const key = eventKey(data);
+        if (key && seenEventIds.has(key)) return;
+        if (key) seenEventIds.add(key);
         const title = String(notification.title ?? data.title ?? "ترنج");
         const body = String(notification.body ?? data.body ?? "اعلان جدید دارید.");
         try {
           await LocalNotifications.schedule({
-            notifications: [
-              {
-                id: Math.floor(Date.now() % 2147483647),
-                title,
-                body,
-                channelId: DEFAULT_CHANNEL_ID,
-                extra: data,
-                schedule: { at: new Date(Date.now() + 250) },
-              },
-            ],
+            notifications: [{
+              id: hashNotificationId(key || `${title}:${body}`),
+              title,
+              body,
+              channelId: DEFAULT_CHANNEL_ID,
+              extra: data,
+              schedule: { at: new Date(Date.now() + 250) },
+            }],
           });
         } catch (err) {
           console.error("[native-push] foreground notification failed", err);
