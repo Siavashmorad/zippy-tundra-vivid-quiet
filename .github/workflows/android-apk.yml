@@ -112,3 +112,5 @@ jobs:
           retention-days: 14
       - name: CI trigger verification
         run: echo "Seller APK workflow updated and triggered by this main push"
+
+      # CI trigger: rebuild Seller APK from current main.
