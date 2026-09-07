@@ -28,47 +28,60 @@ export async function deactivateDeviceToken(userId: string, token?: string): Pro
   if (token?.trim()) { await sql`update device_tokens set active = false, last_seen_at = now() where user_id = ${userId} and token = ${token.trim()}`; return; }
   await sql`update device_tokens set active = false, last_seen_at = now() where user_id = ${userId}`;
 }
-
 async function getFcmAccess(raw: string | undefined): Promise<{ token: string; projectId: string } | null> {
   if (!raw?.trim()) return null;
   try {
     const account = JSON.parse(raw) as { project_id?: string; client_email?: string; private_key?: string };
     if (!account.project_id || !account.client_email || !account.private_key) return null;
     const key = await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256");
-    const jwt = await new SignJWT({ scope: "https://www.googleapis.com/auth/firebase.messaging" }).setProtectedHeader({ alg: "RS256", typ: "JWT" }).setIssuer(account.client_email).setSubject(account.client_email).setAudience("https://oauth2.googleapis.com/token").setIssuedAt().setExpirationTime("1h").sign(key);
+    const jwt = new SignJWT({ scope: "https://www.googleapis.com/auth/firebase.messaging" }).setProtectedHeader({ alg: "RS256", typ: "JWT" }).setIssuer(account.client_email).setSubject(account.client_email).setAudience("https://oauth2.googleapis.com/token").setIssuedAt().setExpirationTime("1h").sign(key);
     const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }) });
     if (!response.ok) { console.error("[push] FCM OAuth failed", response.status); return null; }
     const data = await response.json() as { access_token?: string };
     return data.access_token ? { token: data.access_token, projectId: account.project_id } : null;
   } catch (err) { console.error("[push] FCM credentials invalid", err); return null; }
 }
-
 function getFcmSecretForRole(appRole: string | null | undefined): string | undefined {
   if (appRole === "customer") return process.env.FIREBASE_CUSTOMER_SERVICE_ACCOUNT_JSON ?? process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   return process.env.FIREBASE_SELLER_SERVICE_ACCOUNT_JSON ?? process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 }
-
-async function sendFcmToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
+type FcmPayload = {
+  title: string;
+  body: string;
+  eventId?: string;
+  orderId?: string;
+  messageId?: string;
+  customerId?: string;
+  type?: string;
+  url?: string;
+  tag?: string;
+};
+async function sendFcmToUser(userId: string, payload: FcmPayload): Promise<void> {
   const sql = await getSql();
   const tokens = await sql<{ id: string; token: string; app_role: string | null }>`select id, token, app_role from device_tokens where user_id = ${userId} and active = true`;
   await Promise.all(tokens.map(async (row) => {
     const auth = await getFcmAccess(getFcmSecretForRole(row.app_role));
     if (!auth) return;
+    const data: Record<string, string> = {};
+    for (const [key, value] of Object.entries(payload)) {
+      if (value !== undefined && value !== null && value !== "") data[key] = String(value);
+    }
+    data.tag = payload.tag ?? payload.eventId ?? "toranj";
+    data.url = payload.url ?? "/";
     try {
-      const res = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(auth.projectId)}/messages:send`, { method: "POST", headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { token: row.token, notification: { title: payload.title, body: payload.body }, data: { title: payload.title, body: payload.body, url: payload.url ?? "/", tag: payload.tag ?? "toranj" }, android: { priority: "HIGH", notification: { channel_id: "toranj", sound: "default" } } } }) });
+      const res = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(auth.projectId)}/messages:send`, { method: "POST", headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { token: row.token, notification: { title: payload.title, body: payload.body }, data, android: { priority: "HIGH", notification: { channel_id: "toranj", sound: "default" } } } }) });
       if (res.status === 404 || res.status === 410) await sql`update device_tokens set active = false where id = ${row.id}`;
       if (!res.ok) console.error("[push] FCM send failed", res.status, await res.text());
     } catch (err) { console.error("[push] FCM send failed", err); }
   }));
 }
-
-export async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
+export async function sendPushToUser(userId: string, payload: FcmPayload): Promise<void> {
   const sql = await getSql();
   const subs = await sql<{ id: string; endpoint: string; p256dh: string; auth_secret: string }>`select id, endpoint, p256dh, auth_secret from push_subscriptions where user_id = ${userId}`;
   if (subs.length > 0) {
     try {
       const keys = await loadVapid(); webpush.setVapidDetails("mailto:toranj@toranj.ir", keys.publicKey, keys.privateKey);
-      const body = JSON.stringify({ title: payload.title, body: payload.body, url: payload.url ?? "/", tag: payload.tag ?? "toranj", lang: "fa", dir: "rtl" });
+      const body = JSON.stringify({ title: payload.title, body: payload.body, url: payload.url ?? "/", tag: payload.tag ?? payload.eventId ?? "toranj", eventId: payload.eventId, orderId: payload.orderId, messageId: payload.messageId, customerId: payload.customerId, type: payload.type, lang: "fa", dir: "rtl" });
       await Promise.all(subs.map(async (sub) => { try { await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_secret } }, body, { TTL: 43200, urgency: "high" }); } catch (err) { const status = (err as { statusCode?: number }).statusCode; if (status === 404 || status === 410) await sql`delete from push_subscriptions where id = ${sub.id}`; } }));
     } catch (err) { console.error("[push] web-push failed", err); }
   }
