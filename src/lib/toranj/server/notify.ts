@@ -4,9 +4,9 @@ import { sendPushToUser } from "./push";
 function resolveEventId(input: { type: string; userId: string; title: string; body: string; payload?: Record<string, string> }): string {
   const p = input.payload ?? {};
   if (p.eventId?.trim()) return p.eventId.trim();
-  if (p.orderId) return `${input.type}:order:${p.orderId}:${p.status ?? ""}`;
-  if (p.messageId) return `${input.type}:message:${p.messageId}`;
-  if (p.broadcastId) return `${input.type}:broadcast:${p.broadcastId}:${p.customerId ?? ""}`;
+  if (p.orderId) { const action = input.type === "order.new" ? "new" : input.type === "order.cancelled" ? "cancelled" : (p.status ?? "status"); return `order:${action}:${p.orderId}`; }
+  if (p.messageId) return `message:${p.messageId}`;
+  if (p.broadcastId) return `broadcast:${p.broadcastId}:${p.customerId ?? ""}`;
   if (p.customerId) return `${input.type}:customer:${p.customerId}`;
   return `${input.type}:${input.userId}:${input.title}:${input.body}`;
 }
