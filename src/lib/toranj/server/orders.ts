@@ -41,15 +41,11 @@ export async function createOrderFromCustomer(input: { shopCode: string; phone: 
   const shop = await requireShopByCode(input.shopCode); const phone = normalizeIranPhone(input.phone); if (!phone) fail("شماره موبایل معتبر نیست."); const items = sanitizeItems(input.items);
   let customer = await findCustomerByPhone(shop.id, phone); let brandNew = false;
   if (!customer) { customer = await insertCustomer({ shopId: shop.id, firstName: input.firstName?.trim() || "مشتری", lastName: input.lastName?.trim() || "", phone, source: "customer_app", isNew: true, userId: input.userId ?? null }); brandNew = true; }
-  else if (input.userId && customer.userId !== input.userId) {
-    const sql = await getSql();
-    await sql`update customers set user_id = ${input.userId}, updated_at = now() where id = ${customer.id} and shop_id = ${shop.id}`;
-    customer = (await findCustomerByPhone(shop.id, phone)) ?? customer;
-  }
+  else if (input.userId && customer.userId !== input.userId) { const sql = await getSql(); await sql`update customers set user_id = ${input.userId}, updated_at = now() where id = ${customer.id} and shop_id = ${shop.id}`; customer = (await findCustomerByPhone(shop.id, phone)) ?? customer; }
   const orderId = await insertOrder({ shopId: shop.id, customerId: customer.id, items, notes: input.notes?.trim() ?? "", totalAmount: input.totalAmount ?? null, source: "customer_app" });
   const preview = items.slice(0, 3).map(itemSummary).join("، "); await emitShopEvent(shop.id, "order.created", { orderId, customerId: customer.id, source: "customer_app" });
   if (brandNew) await emitShopEvent(shop.id, "customer.created", { customerId: customer.id, source: "customer_app" });
-  await notifyUserSafe({ shopId: shop.id, userId: shop.ownerUserId, type: "order.new", title: "سفارش جدید", body: `${customerFullName(customer.firstName, customer.lastName)}: ${preview}`, payload: { orderId, customerId: customer.id }, url: `/?tab=orders&order=${orderId}`, tag: `order-${orderId}` });
+  await notifyUserSafe({ shopId: shop.id, userId: shop.ownerUserId, type: "order.new", title: "سفارش جدید", body: `${customerFullName(customer.firstName, customer.lastName)}: ${preview}`, payload: { orderId, customerId: customer.id }, url: `/?tab=orders&order=${encodeURIComponent(orderId)}`, tag: `order:new:${orderId}`, appRole: "seller" });
   return { orderId, shopId: shop.id };
 }
 
@@ -59,15 +55,9 @@ export async function setOrderStatus(userId: string, orderId: string, status: st
   await sql`insert into order_status_events (id, order_id, shop_id, from_status, to_status, actor_user_id) values (${nid("ose")}, ${orderId}, ${shop.id}, ${current.status}, ${status}, ${userId})`;
   await emitShopEvent(shop.id, "order.updated", { orderId, from: current.status, to: status });
   const customerRows = await sql<Record<string, unknown>>`select * from customers where id = ${current.customerId} limit 1`; const customer = customerRows[0] ? mapCustomer(customerRows[0]) : null; const faStatus = STATUS_LABEL[status as OrderStatus] ?? status;
-  if (customer) {
-    const recipientUserId = customer.userId;
-    if (recipientUserId) {
-      const isCancel = status === "cancelled";
-      const isConfirmed = status === "confirmed";
-      const title = isCancel ? "لغو سفارش" : isConfirmed ? "تأیید سفارش" : "به‌روزرسانی سفارش";
-      const body = isCancel ? "سفارش شما لغو شد." : isConfirmed ? "سفارش شما تأیید شد." : `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`;
-      await notifyUserSafe({ shopId: shop.id, userId: recipientUserId, type: isCancel ? "order.cancelled" : "order.status", title, body, payload: { orderId, status }, url: `/c?order=${encodeURIComponent(orderId)}`, tag: `order-${orderId}-${status}` });
-    }
+  if (customer?.userId) {
+    const isCancel = status === "cancelled"; const isConfirmed = status === "confirmed"; const title = isCancel ? "لغو سفارش" : isConfirmed ? "تأیید سفارش" : "به‌روزرسانی سفارش"; const body = isCancel ? "سفارش شما لغو شد." : isConfirmed ? "سفارش شما تأیید شد." : `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`;
+    await notifyUserSafe({ shopId: shop.id, userId: customer.userId, type: isCancel ? "order.cancelled" : "order.status", title, body, payload: { orderId, status, customerId: customer.id }, url: `/c?order=${encodeURIComponent(orderId)}`, tag: `order:${status}:${orderId}`, appRole: "customer" });
   }
   return getOrderForSeller(userId, orderId);
 }
