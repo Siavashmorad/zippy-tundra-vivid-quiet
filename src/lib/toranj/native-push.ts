@@ -12,7 +12,10 @@ function eventKey(data: PushData) { return typeof data.eventId === "string" && d
 function hashNotificationId(value: string): number { let hash = 0; for (let i = 0; i < value.length; i += 1) hash = (hash * 31 + value.charCodeAt(i)) | 0; const id = Math.abs(hash); return id === 0 ? 1 : id; }
 function buildDeepLink(data: PushData): string {
   if (typeof data.url === "string" && data.url.trim()) return data.url;
-  if (data.orderId) return data.type === "order.new" ? `/?tab=orders&order=${encodeURIComponent(data.orderId)}` : `/c?order=${encodeURIComponent(data.orderId)}`;
+  if (data.orderId) {
+    const sellerOrder = data.type === "new_order" || data.type === "order.new";
+    return `${sellerOrder ? "/" : "/c"}?tab=orders&order=${encodeURIComponent(data.orderId)}`;
+  }
   if (data.messageId && data.customerId) return `/?tab=messages&customer=${encodeURIComponent(data.customerId)}&message=${encodeURIComponent(data.messageId)}`;
   if (data.customerId) return `/?tab=messages&customer=${encodeURIComponent(data.customerId)}`;
   return "/";

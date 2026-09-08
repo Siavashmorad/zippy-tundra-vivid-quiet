@@ -139,7 +139,7 @@ export function OrdersTab({
       <button
         type="button"
         onClick={() => setCreating(true)}
-        className="fixed bottom-5 left-1/2 z-20 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-fg shadow-card md:left-auto md:right-8 md:translate-x-0"
+        className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-20 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-fg shadow-card md:left-auto md:right-8 md:translate-x-0"
       >
         <Plus className="size-4" />
         سفارش حضوری

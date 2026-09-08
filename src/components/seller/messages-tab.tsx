@@ -274,7 +274,7 @@ function Chat({ customerId, onBack }: { customerId: string; onBack: () => void }
         <div ref={bottom} />
       </div>
       <form
-        className="flex gap-2 border-t border-line p-3"
+        className="flex gap-2 border-t border-line px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
         onSubmit={(e) => {
           e.preventDefault();
           if (!body.trim()) return;

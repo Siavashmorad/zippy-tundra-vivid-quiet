@@ -3,8 +3,8 @@ import { getBearerToken } from "@/lib/auth/client";
 import { getCustomerChat, readCustomerChat, sendCustomerChat } from "@/lib/toranj/api/messages";
 import type { Message } from "@/lib/toranj/types";
 
-export function CustomerMessenger() {
-  const [open, setOpen] = useState(false);
+export function CustomerMessenger({ initialOpen = false }: { initialOpen?: boolean } = {}) {
+  const [open, setOpen] = useState(initialOpen);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [shopName, setShopName] = useState("ترنج");

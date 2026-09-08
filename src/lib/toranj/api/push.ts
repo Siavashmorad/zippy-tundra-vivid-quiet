@@ -30,7 +30,7 @@ export const registerDeviceToken = createServerFn({ method: "POST" })
     z.object({
       token: z.string().min(8),
       platform: z.string().optional(),
-      appRole: z.enum(["seller", "customer"]).optional(),
+      appRole: z.enum(["seller", "customer"]),
     }),
   )
   .handler(async ({ context, data }) => {

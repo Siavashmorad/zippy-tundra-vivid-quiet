@@ -57,7 +57,7 @@ export async function setOrderStatus(userId: string, orderId: string, status: st
   const customerRows = await sql<Record<string, unknown>>`select * from customers where id = ${current.customerId} limit 1`; const customer = customerRows[0] ? mapCustomer(customerRows[0]) : null; const faStatus = STATUS_LABEL[status as OrderStatus] ?? status;
   if (customer?.userId) {
     const isCancel = status === "cancelled"; const isConfirmed = status === "confirmed"; const title = isCancel ? "لغو سفارش" : isConfirmed ? "تأیید سفارش" : "به‌روزرسانی سفارش"; const body = isCancel ? "سفارش شما لغو شد." : isConfirmed ? "سفارش شما تأیید شد." : `وضعیت سفارش شما به «${faStatus}» تغییر کرد.`;
-    await notifyUserSafe({ shopId: shop.id, userId: customer.userId, type: isCancel ? "order.cancelled" : "order.status", title, body, payload: { orderId, status, customerId: customer.id }, url: `/c?order=${encodeURIComponent(orderId)}`, tag: `order:${status}:${orderId}`, appRole: "customer" });
+    await notifyUserSafe({ shopId: shop.id, userId: customer.userId, type: isCancel ? "order.cancelled" : "order.status", title, body, payload: { orderId, status, customerId: customer.id }, url: `/c?tab=orders&order=${encodeURIComponent(orderId)}`, tag: `order:${status}:${orderId}`, appRole: "customer" });
   }
   return getOrderForSeller(userId, orderId);
 }

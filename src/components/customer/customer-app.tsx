@@ -10,8 +10,8 @@ type CustomerState = { customer: { firstName: string; lastName: string; phone: s
 type CustomerOrder = { id: string; status: string; notes: string; totalAmount: number | null; paymentStatus: string; createdAt: string; items: Array<{ name: string; weight: number | null; quantity: number | null; unit: string; notes: string }> };
 type Notif = { id: string; type: string; title: string; body: string; payload: Record<string, unknown>; readAt: string | null; createdAt: string };
 
-export function CustomerApp() {
-  const [tab, setTab] = useState<Tab>("سفارش");
+export function CustomerApp({ initialTab }: { initialTab?: Tab } = {}) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "سفارش");
   const [state, setState] = useState<CustomerState | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -85,10 +85,10 @@ export function CustomerApp() {
     finally { setBusy(false); }
   }
 
-  return <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-paper pb-24">
+  return <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-paper pb-[calc(6rem+env(safe-area-inset-bottom))]">
     <header className="sticky top-0 z-10 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur"><div className="flex items-center justify-between"><div><h1 className="text-lg font-bold">مشتری ترنج</h1><p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-soft"><span className={`size-2 rounded-full ${state?.shop.isOnline ? "bg-green-500" : "bg-gray-400"}`} />{state?.shop.isOnline ? "فروشنده آنلاین است" : "فروشنده آفلاین است"}</p></div><button className="text-xs text-ink-soft" onClick={() => void refresh()}>به‌روزرسانی</button></div></header>
     <section className="flex-1 px-4 py-4">{error && <div className="mb-3 rounded-xl bg-brand/10 px-3 py-2 text-sm text-brand" role="alert">{error}</div>}{tab === "سفارش" && <OrderTab items={items} updateItem={updateItem} addItem={() => setItems((x) => [...x, { name: "", weight: null, quantity: null, unit: "kg", notes: "" }])} removeItem={(i) => setItems((x) => x.filter((_, n) => n !== i))} send={sendOrder} busy={busy} />}{tab === "تاریخچه" && <HistoryTab orders={orders} />}{tab === "اعلان‌ها" && <NotificationsTab items={notifs} onRefresh={refreshNotifs} onOpenOrder={() => setTab("تاریخچه")} />}{tab === "حساب من" && <AccountTab state={state} onSaved={refresh} onLogout={() => void signOut("/customer-login" as never)} />}</section>
-    <nav className="fixed bottom-0 left-1/2 z-20 grid w-full max-w-md -translate-x-1/2 grid-cols-4 border-t border-line bg-surface/95 backdrop-blur">{(["سفارش", "تاریخچه", "اعلان‌ها", "حساب من"] as const).map((name) => <button key={name} className={`relative py-3 text-sm font-medium ${tab === name ? "text-brand" : "text-ink-soft"}`} onClick={() => setTab(name)}>{name}{name === "اعلان‌ها" && unread > 0 ? <span className="absolute top-1 left-1/2 grid min-w-4 -translate-x-1/2 place-items-center rounded-full bg-brand px-1 text-[10px] text-brand-fg">{unread}</span> : null}</button>)}</nav>
+    <nav className="fixed bottom-0 left-1/2 z-20 grid w-full max-w-md -translate-x-1/2 grid-cols-4 border-t border-line bg-surface/95 backdrop-blur">{(["سفارش", "تاریخچه", "اعلان‌ها", "حساب من"] as const).map((name) => <button key={name} className={`relative pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sm font-medium ${tab === name ? "text-brand" : "text-ink-soft"}`} onClick={() => setTab(name)}>{name}{name === "اعلان‌ها" && unread > 0 ? <span className="absolute top-1 left-1/2 grid min-w-4 -translate-x-1/2 place-items-center rounded-full bg-brand px-1 text-[10px] text-brand-fg">{unread}</span> : null}</button>)}</nav>
   </main>;
 }
 
