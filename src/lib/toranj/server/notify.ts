@@ -10,7 +10,6 @@ function resolveEventId(input: { type: string; userId: string; title: string; bo
   if (p.customerId) return `${input.type}:customer:${p.customerId}`;
   return `${input.type}:${input.userId}:${input.title}:${input.body}`;
 }
-function roleForNotification(type: string): "seller" | "customer" { return type === "order.new" || type === "message.new" && false ? "seller" : "customer"; }
 export async function notifyUserSafe(input: { shopId: string; userId: string; type: string; title: string; body: string; payload?: Record<string, string>; url?: string; tag?: string; appRole?: "seller" | "customer" }): Promise<void> {
   try {
     const eventId = resolveEventId(input);
