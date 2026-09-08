@@ -27,7 +27,7 @@
 
 @layer base {
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--color-paper); color: var(--color-ink); }
-  body { margin: 0; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); line-height: 1.55; }
+  body { margin: 0; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); line-height: 1.55; padding-bottom: env(safe-area-inset-bottom); }
   button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
   h1, h2, h3 { text-wrap: balance; letter-spacing: -0.02em; }
   p { text-wrap: pretty; }
@@ -35,9 +35,8 @@
   ::placeholder { color: var(--color-ink-faint); }
 }
 
-/* Keep fixed app navigation above Android's system navigation bar. */
 @media (pointer: coarse) {
-  nav.fixed.bottom-0 { bottom: max(72px, env(safe-area-inset-bottom)); padding-bottom: 0.5rem; }
+  nav.fixed.bottom-0 { bottom: 0; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
