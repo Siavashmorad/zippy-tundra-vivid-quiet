@@ -24,7 +24,7 @@ export async function sendSellerMessage(userId: string, customerId: string, body
   const text = body.trim(); if (!text) fail("متن پیام خالی است."); const shop = await requireShopByOwner(userId); const customer = await getCustomerForSeller(userId, customerId); const sql = await getSql(); const id = nid("msg");
   await sql`insert into messages (id, shop_id, customer_id, sender_role, sender_user_id, body, delivered_at) values (${id}, ${shop.id}, ${customerId}, 'seller', ${userId}, ${text}, now())`; await sql`update customers set updated_at = now() where id = ${customerId}`;
   await emitShopEvent(shop.id, "message.created", { messageId: id, customerId, senderRole: "seller" });
-  if (customer.userId) await notifyUserSafe({ shopId: shop.id, userId: customer.userId, type: "message.new", title: "پیام جدید از ترنج", body: text.slice(0, 120), payload: { customerId, messageId: id }, url: `/?tab=messages&customer=${encodeURIComponent(customerId)}&message=${encodeURIComponent(id)}`, tag: `message:${id}`, appRole: "customer" });
+  if (customer.userId) await notifyUserSafe({ shopId: shop.id, userId: customer.userId, type: "message.new", title: "پیام جدید از ترنج", body: text.slice(0, 120), payload: { customerId, messageId: id }, url: `/c?tab=messages&customer=${encodeURIComponent(customerId)}&message=${encodeURIComponent(id)}`, tag: `message:${id}`, appRole: "customer" });
   const rows = await sql<Record<string, unknown>>`select * from messages where id = ${id} limit 1`; return mapMessage(rows[0]!);
 }
 export async function sendCustomerMessage(input: { shopCode: string; phone: string; body: string }): Promise<Message> {
