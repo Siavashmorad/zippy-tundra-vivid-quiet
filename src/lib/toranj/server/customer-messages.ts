@@ -36,7 +36,7 @@ export async function sendCustomerChatMessage(userId: string, body: string): Pro
   await sql`insert into messages (id, shop_id, customer_id, sender_role, sender_user_id, body, delivered_at) values (${id}, ${shop.id}, ${customer.id}, 'customer', ${userId}, ${text}, now())`;
   await sql`update customers set updated_at = now() where id = ${customer.id}`;
   await emitShopEvent(shop.id, "message.created", { messageId: id, customerId: customer.id, senderRole: "customer" });
-  await notifyUserSafe({ shopId: shop.id, userId: shop.owner_user_id, type: "message.new", title: "پیام جدید از مشتری", body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`, payload: { customerId: customer.id, messageId: id }, url: `/?tab=messages&customer=${customer.id}`, tag: `msg-${customer.id}` });
+  await notifyUserSafe({ shopId: shop.id, userId: shop.owner_user_id, type: "message.new", title: "پیام جدید از مشتری", body: `${customerFullName(customer.firstName, customer.lastName)}: ${text.slice(0, 100)}`, payload: { customerId: customer.id, messageId: id, senderRole: "customer" }, url: `/?tab=messages&customer=${encodeURIComponent(customer.id)}&message=${encodeURIComponent(id)}`, tag: `message:${id}`, appRole: "seller" });
   const result = await sql<Record<string, unknown>>`select * from messages where id = ${id} limit 1`;
   return mapMessage(result[0]!);
 }
