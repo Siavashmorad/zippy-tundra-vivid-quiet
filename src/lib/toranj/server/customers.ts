@@ -255,7 +255,10 @@ export async function registerCustomerFromApp(input: {
     title: "مشتری جدید",
     body: `${created.firstName} از اپ مشتری ثبت‌نام کرد.`,
     url: "/?tab=customers",
-    tag: `customer-${created.id}`,
-  });
+    tag: `customer:new:${created.id}`,
+    eventId: `customer:new:${created.id}`,
+    type: "customer.new",
+    customerId: created.id,
+  }, "seller");
   return { customer: created, created: true, shopId: shop.id };
 }
