@@ -12,6 +12,9 @@ export const authClient = createAuthClient({
       if (token) ctx.headers.set("Authorization", `Bearer ${token}`);
       return ctx;
     },
+    onSuccess(ctx) {
+      captureAuthResponseToken(ctx);
+    },
   },
 });
 
