@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { CustomerApp } from "@/components/customer/customer-app";
 import { CustomerMessenger } from "@/components/customer/customer-messenger";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { setupNativePush } from "@/lib/toranj/native-push";
 
 export const Route = createFileRoute("/c")({ component: CustomerHome });
 
@@ -11,6 +13,14 @@ function CustomerHome() {
   const tab = params?.get("tab");
   const initialTab = tab === "orders" ? ("تاریخچه" as const) : undefined;
   const openMessages = tab === "messages";
+
+  useEffect(() => {
+    if (isPending || !user) return;
+    let cleanup: (() => void) | undefined;
+    void setupNativePush("customer").then((fn) => { cleanup = fn; });
+    return () => cleanup?.();
+  }, [isPending, user]);
+
   if (isPending) return <main className="grid min-h-dvh place-items-center text-sm text-ink-soft">در حال بارگذاری…</main>;
   if (!user) return <RedirectToCustomerSignIn />;
   return <><CustomerApp initialTab={initialTab} /><CustomerMessenger initialOpen={openMessages} /></>;
