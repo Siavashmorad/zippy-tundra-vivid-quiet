@@ -4,26 +4,6 @@ import { createAuthClient } from "better-auth/react";
 import { runPreSignInSignOut, runSignOut } from "../../../scripts/sign-out-plan.mjs";
 import { GROK_PROVIDERS } from "./providers";
 
-/**
- * Better Auth client for this React SPA (browser-side).
- *
- * Talks to this app's OWN Better Auth at same-origin `/api/auth/*`. In the live
- * preview the app is an embedded iframe with PARTITIONED cookies, so after a
- * popup sign-in it can't read the session cookie — it authenticates with a
- * bearer token instead (captured from the popup, see `signIn`). The `onRequest`
- * hook attaches that token when present; when deployed (cookie auth) no token
- * is stored, so nothing changes.
- *
- * Native Capacitor builds additionally persist the Better Auth session bearer
- * token in WebView local storage. This is a session token, never the password,
- * and is only used as a fallback when Android WebView cookie persistence is not
- * reliable. The server still validates the token against Better Auth on every
- * request and logout revokes the server-side session.
- *
- * To sign out call `signOut()` below, NOT `authClient.signOut()`: the raw call
- * leaves the bearer token in place, and `onRequest` keeps re-attaching it, so the
- * visitor stays signed in.
- */
 export const authClient = createAuthClient({
   plugins: [genericOAuthClient()],
   fetchOptions: {
@@ -35,23 +15,11 @@ export const authClient = createAuthClient({
   },
 });
 
-/**
- * Production safety rule: a deployed build must NEVER silently fall back to the
- * shared dev user. That fallback is useful only inside the local builder
- * workspace. Capacitor loads the production Vercel origin, so forcing auth on in
- * production guarantees an unauthenticated Android install reaches `/login`
- * instead of mounting SellerApp and failing its first authenticated server call.
- *
- * Local development keeps the `.grok/app-env.json` switch so the existing test
- * and preview workflows remain unchanged.
- */
 export const authEnabled =
   import.meta.env.PROD || import.meta.env.VITE_AUTH_ENABLED !== "false";
 
-/** The upstream providers to render sign-in buttons for. */
 export { GROK_PROVIDERS };
 
-// ── Persistent native bearer token ──────────────────────────────────────────
 const PREVIEW_BEARER_KEY = "grok-auth.bearer-token";
 const NATIVE_BEARER_KEY = "toranj.auth.session-token";
 
@@ -63,7 +31,6 @@ function isNativeApp(): boolean {
   }
 }
 
-/** Store a Better Auth session token in native WebView storage only. */
 function setNativeBearerToken(token: string | null): void {
   if (typeof window === "undefined" || !isNativeApp()) return;
   try {
@@ -88,7 +55,7 @@ function clearNativeBearerToken(): void {
 }
 
 /** Capture Better Auth's documented set-auth-token response header after sign-in. */
-function captureAuthResponseToken(ctx: { response?: Response }): void {
+export function captureAuthResponseToken(ctx: { response?: Response }): void {
   try {
     const token = ctx.response?.headers.get("set-auth-token")?.trim();
     if (token) setNativeBearerToken(token);
@@ -97,7 +64,6 @@ function captureAuthResponseToken(ctx: { response?: Response }): void {
   }
 }
 
-/** The stored session bearer token, or null. */
 export function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
   if (isNativeApp()) return getNativeBearerToken();
@@ -122,11 +88,6 @@ function setBearerToken(token: string | null): void {
   }
 }
 
-/**
- * The sandbox live preview runs this app inside an iframe on a `*.grok-sandbox.com`
- * host, where a full-page redirect to the broker can't work — so sign-in uses a
- * popup there and a normal redirect everywhere else.
- */
 function inLivePreview(): boolean {
   return (
     typeof window !== "undefined" &&
