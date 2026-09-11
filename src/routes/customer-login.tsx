@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth/client";
+import { authClient, captureAuthResponseToken } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { ToranjMark } from "@/components/brand/toranj-mark";
 import { normalizeIranPhone } from "@/lib/toranj/phone";
@@ -40,11 +40,17 @@ function CustomerLogin() {
       const email = `${normalized}@customer.toranj.ir`;
       if (mode === "up") {
         if (!firstName.trim() || !lastName.trim()) throw new Error("نام و نام خانوادگی را وارد کنید.");
-        const result = await authClient.signUp.email({ email, password, name: `${firstName.trim()} ${lastName.trim()}` });
+        const result = await authClient.signUp.email(
+          { email, password, name: `${firstName.trim()} ${lastName.trim()}` },
+          { onSuccess: captureAuthResponseToken },
+        );
         if (result.error) throw new Error(result.error.message ?? "ثبت‌نام ناموفق بود.");
         await registerCustomer({ data: { firstName: firstName.trim(), lastName: lastName.trim(), phone: normalized } });
       } else {
-        const result = await authClient.signIn.email({ email, password, rememberMe: true });
+        const result = await authClient.signIn.email(
+          { email, password, rememberMe: true },
+          { onSuccess: captureAuthResponseToken },
+        );
         if (result.error) throw new Error(result.error.message ?? "ورود ناموفق بود.");
       }
       try { localStorage.setItem(LAST_KEY, normalized); }
