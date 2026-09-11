@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { runPreSignInSignOut, runSignOut } from "../../../scripts/sign-out-plan.mjs";
@@ -10,8 +11,14 @@ import { GROK_PROVIDERS } from "./providers";
  * preview the app is an embedded iframe with PARTITIONED cookies, so after a
  * popup sign-in it can't read the session cookie — it authenticates with a
  * bearer token instead (captured from the popup, see `signIn`). The `onRequest`
- * hook attaches that token when present; when deployed (cookie auth) no token is
- * stored, so nothing changes.
+ * hook attaches that token when present; when deployed (cookie auth) no token
+ * is stored, so nothing changes.
+ *
+ * Native Capacitor builds additionally persist the Better Auth session bearer
+ * token in WebView local storage. This is a session token, never the password,
+ * and is only used as a fallback when Android WebView cookie persistence is not
+ * reliable. The server still validates the token against Better Auth on every
+ * request and logout revokes the server-side session.
  *
  * To sign out call `signOut()` below, NOT `authClient.signOut()`: the raw call
  * leaves the bearer token in place, and `onRequest` keeps re-attaching it, so the
@@ -44,18 +51,58 @@ export const authEnabled =
 /** The upstream providers to render sign-in buttons for. */
 export { GROK_PROVIDERS };
 
-// ── Live-preview bearer token ────────────────────────────────────────────────
-// The embedded preview iframe has partitioned cookies, so we keep the session's
-// bearer token in sessionStorage and attach it to every Better Auth request (and
-// to server functions, via `@/lib/auth/middleware`). Empty everywhere except the
-// preview after a popup sign-in, so the cookie path is untouched elsewhere.
-const BEARER_KEY = "grok-auth.bearer-token";
+// ── Persistent native bearer token ──────────────────────────────────────────
+const PREVIEW_BEARER_KEY = "grok-auth.bearer-token";
+const NATIVE_BEARER_KEY = "toranj.auth.session-token";
 
-/** The stored preview bearer token, or null. */
+function isNativeApp(): boolean {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+/** Store a Better Auth session token in native WebView storage only. */
+function setNativeBearerToken(token: string | null): void {
+  if (typeof window === "undefined" || !isNativeApp()) return;
+  try {
+    if (token) window.localStorage.setItem(NATIVE_BEARER_KEY, token);
+    else window.localStorage.removeItem(NATIVE_BEARER_KEY);
+  } catch {
+    // Storage can be unavailable in restricted WebViews; cookie auth remains the fallback.
+  }
+}
+
+function getNativeBearerToken(): string | null {
+  if (typeof window === "undefined" || !isNativeApp()) return null;
+  try {
+    return window.localStorage.getItem(NATIVE_BEARER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearNativeBearerToken(): void {
+  setNativeBearerToken(null);
+}
+
+/** Capture Better Auth's documented set-auth-token response header after sign-in. */
+function captureAuthResponseToken(ctx: { response?: Response }): void {
+  try {
+    const token = ctx.response?.headers.get("set-auth-token")?.trim();
+    if (token) setNativeBearerToken(token);
+  } catch {
+    // A missing header is harmless; the normal session cookie may still work.
+  }
+}
+
+/** The stored session bearer token, or null. */
 export function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
+  if (isNativeApp()) return getNativeBearerToken();
   try {
-    return window.sessionStorage.getItem(BEARER_KEY);
+    return window.sessionStorage.getItem(PREVIEW_BEARER_KEY);
   } catch {
     return null;
   }
@@ -63,9 +110,13 @@ export function getBearerToken(): string | null {
 
 function setBearerToken(token: string | null): void {
   if (typeof window === "undefined") return;
+  if (isNativeApp()) {
+    setNativeBearerToken(token);
+    return;
+  }
   try {
-    if (token) window.sessionStorage.setItem(BEARER_KEY, token);
-    else window.sessionStorage.removeItem(BEARER_KEY);
+    if (token) window.sessionStorage.setItem(PREVIEW_BEARER_KEY, token);
+    else window.sessionStorage.removeItem(PREVIEW_BEARER_KEY);
   } catch {
     /* storage unavailable — ignore */
   }
@@ -175,7 +226,10 @@ export async function signOut(redirectTo = "/"): Promise<void> {
       const { error } = await authClient.signOut();
       if (error) throw new Error(error.message ?? "Sign-out failed");
     },
-    clearToken: () => setBearerToken(null),
+    clearToken: () => {
+      setBearerToken(null);
+      clearNativeBearerToken();
+    },
     redirect: () => {
       window.location.href = redirectTo;
     },
